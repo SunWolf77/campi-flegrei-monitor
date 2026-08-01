@@ -6,10 +6,17 @@ export const SITE_URL =
 
 export const SITE_NAME = "Campi Flegrei Monitor";
 export const SITE_TITLE = "Campi Flegrei Monitor · Sun-Earth-Sentinel";
-export const SITE_DESCRIPTION =
-  "INGV-powered Campi Flegrei seismic and volcano monitoring — depth visualization, swarm analysis, SUPT detective, SES focus node #2 after Tonga–Kermadec.";
 
-/** Absolute OG image (1200×630). X requires absolute HTTPS URL. */
-export const OG_IMAGE = `${SITE_URL}/og.png`;
+/** Keep under ~200 chars for X card body. */
+export const SITE_DESCRIPTION =
+  "Live INGV Campi Flegrei swarm monitor — depth, SUPT Continuum (EII/RPAM), Schumann, SES node #2. Not a forecast.";
+
+/**
+ * Absolute OG image. Bump CARD_VERSION whenever art or tags change so X
+ * treats the image URL as new (card cache cannot be purged via API).
+ */
+export const CARD_VERSION = "20260801b";
+
+export const OG_IMAGE = `${SITE_URL}/og-card-v2.png?v=${CARD_VERSION}`;
 
 export const TWITTER_HANDLE = "@Sunwolf77";

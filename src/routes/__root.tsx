@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import appCss from "../styles.css?url";
 import {
+  CARD_VERSION,
   OG_IMAGE,
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -28,6 +29,7 @@ export const Route = createRootRoute({
       { name: "theme-color", content: "#0b0c0e" },
       { name: "color-scheme", content: "dark light" },
       { name: "author", content: "SunWolf · Sun-Earth-Sentinel" },
+      { name: "robots", content: "index,follow,max-image-preview:large" },
 
       // Open Graph
       { property: "og:type", content: "website" },
@@ -46,7 +48,7 @@ export const Route = createRootRoute({
       },
       { property: "og:locale", content: "en_US" },
 
-      // X / Twitter
+      // X / Twitter — summary_large_image needs absolute https image
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: TWITTER_HANDLE },
       { name: "twitter:creator", content: TWITTER_HANDLE },
@@ -57,6 +59,10 @@ export const Route = createRootRoute({
         name: "twitter:image:alt",
         content: "Campi Flegrei Monitor — Sun-Earth-Sentinel node #2",
       },
+      // domain hint (nonstandard but some clients use it)
+      { name: "twitter:url", content: SITE_URL },
+      // cache-bust marker for operators
+      { name: "ses:card-version", content: CARD_VERSION },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -67,7 +73,7 @@ export const Route = createRootRoute({
       { rel: "canonical", href: SITE_URL },
       { rel: "image_src", href: OG_IMAGE },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/og.png" },
+      { rel: "apple-touch-icon", href: "/og-card-v2.png" },
     ],
   }),
   component: RootComponent,

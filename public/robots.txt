@@ -1,0 +1,11 @@
+# Allow social crawlers (X, Facebook, Slack, LinkedIn)
+User-agent: *
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+Sitemap: https://campi-flegrei-monitor.vercel.app/
