@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# build / deploy
+dist/
+.output/
+.vercel/output/
+.vercel/*
+!.vercel/README.md
+.nitro/
+.tanstack/
+.vinxi/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# logs / OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# app runtime / agent sandbox (not for public SES repo)
+data/*.db
+data/*.db-*
+/tmp/
+screenshots/
+attachments/
+.grok/
+AGENTS.md
+.node_modules.lock
+*.local
