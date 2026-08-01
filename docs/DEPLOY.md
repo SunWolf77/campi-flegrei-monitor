@@ -57,6 +57,17 @@ Do **not** set `DATABASE_URL` unless you intentionally enable auth.
 
 This app is SES focus node **#2** (Campi Flegrei). Tonga–Kermadec is node **#1** inside the same UI. Authority routing never dual-reads INGV↔USGS.
 
+### Handoff contract
+
+| Direction | URL |
+|---|---|
+| Sentinel → this board | `https://campi-flegrei-monitor.vercel.app/?from=ses&sesNode=mediterranean` |
+| This board → Sentinel | `https://sun-earth-sentinel.vercel.app/?tab=live&node=mediterranean` |
+| Aliases for `sesNode` | `mediterranean`, `campi-flegrei`, `campi`, `cf` |
+| Companion TK board | `?from=ses&sesNode=tonga` → Tonga node inside this UI, or open `tonga-kermadec-monitor.vercel.app` |
+
+UI chrome: sticky **Open in Sentinel** bar + companion board link.
+
 ## 6. X / Twitter share card
 
 X needs **Open Graph + Twitter Card** tags with an **absolute HTTPS image**.

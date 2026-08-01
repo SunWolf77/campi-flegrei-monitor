@@ -13,6 +13,8 @@ import {
   VolumeX,
   SlidersHorizontal,
   ChevronDown,
+  ExternalLink,
+  Globe2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,12 @@ import type { FocusNodeId, QuakeEvent, SwarmCluster } from "@/lib/seismic/types"
 import { fetchCatalog, type CatalogPayload, type WindowKey } from "@/lib/seismic/server";
 import { emptyCatalog, normalizeCatalog } from "@/lib/seismic/catalog";
 import { getAuthority } from "@/lib/seismic/authority";
+import {
+  companionBoardLabel,
+  companionBoardUrl,
+  parseSesHandoff,
+  sentinelFocusUrl,
+} from "@/lib/seismic/ses-handoff";
 import { classifySwarmIntensity } from "@/lib/seismic/intensity";
 import {
   getQuietMode,
@@ -92,7 +100,11 @@ export function MonitorApp({ initial }: Props) {
   );
 
   const [data, setData] = useState<CatalogPayload>(safeInitial);
-  const [nodeId, setNodeId] = useState<FocusNodeId>(safeInitial.nodeId ?? "campi-flegrei");
+  const handoff = useMemo(() => parseSesHandoff(), []);
+  const [fromSes] = useState(handoff.fromSes);
+  const [nodeId, setNodeId] = useState<FocusNodeId>(
+    handoff.focusFromQuery ?? safeInitial.nodeId ?? "campi-flegrei",
+  );
   const [windowKey, setWindowKey] = useState<WindowKey>(safeInitial.window?.key ?? "7d");
   const [minMag, setMinMag] = useState(0);
   const [maxDepthKm, setMaxDepthKm] = useState<number | null>(8);
@@ -471,6 +483,44 @@ export function MonitorApp({ initial }: Props) {
           />
         </div>
       </header>
+
+      {/* SES network handoff — Sentinel ↔ boards */}
+      <div className="border-b border-border bg-secondary/30">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <Globe2 className="size-3.5 shrink-0 text-accent" />
+            <span className="font-medium text-foreground">
+              Sun Earth Sentinel · node #{node.networkOrder}
+            </span>
+            <span className="hidden sm:inline">· dragon <code className="font-mono text-[10px]">{authority.sesDragonId}</code></span>
+            {fromSes && (
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                From SES
+              </Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <a
+              href={sentinelFocusUrl(nodeId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 text-xs font-semibold text-accent hover:bg-accent/20"
+            >
+              Open in Sentinel
+              <ExternalLink className="size-3" />
+            </a>
+            <a
+              href={companionBoardUrl(nodeId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              {companionBoardLabel(nodeId)}
+              <ExternalLink className="size-3 opacity-70" />
+            </a>
+          </div>
+        </div>
+      </div>
 
       <main className="mx-auto max-w-[1400px] min-w-0 overflow-x-hidden px-3 py-3 sm:px-5 sm:py-4">
         {loading && events.length === 0 && (
