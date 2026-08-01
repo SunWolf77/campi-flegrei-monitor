@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0c0e"/>
+      <stop offset="100%" stop-color="#1a2430"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="70%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#7eb8c9" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#7eb8c9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <!-- caldera rings -->
+  <circle cx="920" cy="320" r="160" fill="none" stroke="#7eb8c9" stroke-opacity="0.25" stroke-width="2"/>
+  <circle cx="920" cy="320" r="110" fill="none" stroke="#7eb8c9" stroke-opacity="0.4" stroke-width="2"/>
+  <circle cx="920" cy="320" r="55" fill="#e07060" fill-opacity="0.85"/>
+  <circle cx="880" cy="280" r="18" fill="#d4a05a"/>
+  <circle cx="960" cy="360" r="12" fill="#6a9bb0"/>
+  <circle cx="900" cy="380" r="10" fill="#e07060"/>
+  <!-- left text -->
+  <text x="72" y="160" fill="#8b919c" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="22" letter-spacing="4">SUN-EARTH-SENTINEL · NODE #2</text>
+  <text x="72" y="250" fill="#e8eaed" font-family="IBM Plex Sans, system-ui, sans-serif" font-size="64" font-weight="600">Campi Flegrei</text>
+  <text x="72" y="320" fill="#e8eaed" font-family="IBM Plex Sans, system-ui, sans-serif" font-size="64" font-weight="600">Monitor</text>
+  <text x="72" y="390" fill="#a8c5d4" font-family="IBM Plex Sans, system-ui, sans-serif" font-size="28">INGV GOSSIP · SUPT Continuum · Swarm detective</text>
+  <rect x="72" y="440" width="520" height="1" fill="#2a2f3a"/>
+  <text x="72" y="490" fill="#8b919c" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="20">Live seismic · depth · Schumann · EII/RPAM</text>
+  <text x="72" y="560" fill="#5a6570" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="18">campi-flegrei-monitor.vercel.app</text>
+</svg>
