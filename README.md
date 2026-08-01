@@ -31,24 +31,21 @@ npm run typecheck
 npm run build        # production + Nitro vercel output
 ```
 
-## Vercel deploy (new repo)
+## Deploy
 
-1. Create empty GitHub repo (e.g. `campi-flegrei-monitor` or `ses-campi-flegrei-node`).
-2. Push this tree:
+**Repo:** [github.com/SunWolf77/campi-flegrei-monitor](https://github.com/SunWolf77/campi-flegrei-monitor)
+
+Full guide: **[docs/DEPLOY.md](docs/DEPLOY.md)** (Vercel env vars, CI, SES link).
 
 ```bash
-git init
-git add .
-git commit -m "Initial: Campi Flegrei SES node #2 monitor"
-git branch -M main
-git remote add origin https://github.com/SunWolf77/<REPO>.git
+git remote add origin https://github.com/SunWolf77/campi-flegrei-monitor.git
 git push -u origin main
 ```
 
-3. Vercel → **Import** the repo → Framework **Other** / Vite is fine (Nitro emits Vercel output on `npm run build`).
-4. Build command: `npm run build`  
-   Output: leave default (Nitro/Vercel adapter handles `.vercel/output`).
-5. Env: none required for core seismic + Schumann feeds (public APIs).
+1. Vercel → **Import** this repo  
+2. Build: `npm run build` · Node **22**  
+3. Env for core monitor: **none required** (set `VITE_AUTH_ENABLED=false` if you want explicit auth-off)  
+4. CI: GitHub Actions on `main` / PRs runs typecheck + production build  
 
 ### Build contract
 
