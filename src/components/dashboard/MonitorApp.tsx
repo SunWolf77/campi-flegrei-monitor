@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   Brain,
+  Crosshair,
   Database,
   Layers,
   Map as MapIcon,
@@ -39,6 +40,7 @@ import { fetchSpaceWeather } from "@/lib/supt/kpServer";
 import type { SchumannSnapshot } from "@/lib/supt/schumann";
 import type { SpaceWeatherSnapshot } from "@/lib/supt/spaceWeather";
 import { SuptDetective } from "@/components/detective/SuptDetective";
+import { StressMapPanel } from "@/components/detective/StressMapPanel";
 import { listFocusNodes, getFocusNode } from "@/lib/seismic/focus-nodes";
 import type { FocusNodeId, QuakeEvent, SwarmCluster } from "@/lib/seismic/types";
 import { fetchCatalog, type CatalogPayload, type WindowKey } from "@/lib/seismic/server";
@@ -65,7 +67,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ShareMenu } from "@/components/ui/ShareMenu";
 import { cn, formatDateTime, formatMag, formatRelativeTime, magValue } from "@/lib/utils";
 
-type TabKey = "map" | "depth" | "timeline" | "swarm" | "detective" | "catalog" | "feeds";
+type TabKey = "map" | "stress" | "depth" | "timeline" | "swarm" | "detective" | "catalog" | "feeds";
 
 const WINDOWS: { key: WindowKey; label: string }[] = [
   { key: "24h", label: "24h" },
@@ -84,6 +86,7 @@ const DEPTH_GATES: { km: number | null; label: string }[] = [
 
 const TABS: { key: TabKey; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "map", label: "Map", icon: MapIcon },
+  { key: "stress", label: "Stress", icon: Crosshair },
   { key: "depth", label: "Depth", icon: Layers },
   { key: "timeline", label: "Time", icon: Activity },
   { key: "swarm", label: "Swarms", icon: Waves },
@@ -289,7 +292,7 @@ export function MonitorApp({ initial }: Props) {
   const headerCollapsed =
     headerCollapsedUser != null
       ? headerCollapsedUser
-      : preferCollapsedChrome(vp, tab === "map");
+      : preferCollapsedChrome(vp, tab === "map" || tab === "stress");
 
   const toggleHeader = () => {
     const next = !headerCollapsed;
@@ -314,7 +317,7 @@ export function MonitorApp({ initial }: Props) {
   const mapHeightPx = mapFillHeightPx(
     vp,
     chromeH,
-    tab === "map" ? 40 : 0,
+    tab === "map" || tab === "stress" ? 40 : 0,
   );
 
   return (
@@ -612,7 +615,7 @@ export function MonitorApp({ initial }: Props) {
         )}
 
         {/* KPIs only off map — pulse strip covers EII/rate on map tab */}
-        {tab !== "map" && (
+        {tab !== "map" && tab !== "stress" && (
           <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
             <Kpi
               label="Events"
@@ -647,7 +650,7 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
-        {largest && magValue(largest.magnitude) >= 3.5 && tab !== "map" && (
+        {largest && magValue(largest.magnitude) >= 3.5 && tab !== "map" && tab !== "stress" && (
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-1.5 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <AlertTriangle className="size-3.5 text-destructive" />
@@ -752,6 +755,15 @@ export function MonitorApp({ initial }: Props) {
               </details>
             )}
           </div>
+        )}
+
+        {tab === "stress" && (
+          <StressMapPanel
+            events={events}
+            node={node}
+            swarm={swarm}
+            height={mapHeightPx}
+          />
         )}
 
         {tab === "depth" && (

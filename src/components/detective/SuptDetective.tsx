@@ -121,6 +121,120 @@ export function SuptDetective({ events, node, swarm }: Props) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3 overflow-x-hidden">
+      {/* Stress map first — fullscreen/home also on Stress tab */}
+      <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+        <Card className="overflow-hidden">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-sm">Stress & fracture map</CardTitle>
+              <CardDescription className="text-[11px]">
+                Use Full for immersive view · Home resets caldera · also under Stress tab
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="p-1 pt-0 sm:p-2 sm:pt-0">
+            <div className="h-[min(62vh,560px)] min-h-[320px]">
+              <SuptMap
+                node={node}
+                events={events}
+                planes={report.fabric.planes}
+                stressNodes={report.fabric.stressNodes}
+                lineaments={report.fabric.lineaments}
+                migration={report.fabric.migration}
+                stressField={report.fabric.stressField}
+                selectedNodeId={selected?.id}
+                onSelectNode={setSelectedNodeId}
+                height={560}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-col gap-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="size-4 text-warn" />
+                <CardTitle>Detective findings</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="flex max-h-[420px] flex-col gap-2 overflow-y-auto">
+              {report.findings.map((f) => (
+                <div
+                  key={f.id}
+                  className={cn(
+                    "rounded-lg border px-3 py-2",
+                    f.severity === "alert" && "border-destructive/35 bg-destructive/5",
+                    f.severity === "watch" && "border-warn/35 bg-warn/5",
+                    f.severity === "info" && "border-border bg-secondary/40",
+                  )}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant={
+                        f.severity === "alert"
+                          ? "critical"
+                          : f.severity === "watch"
+                            ? "warn"
+                            : "outline"
+                      }
+                    >
+                      {f.severity}
+                    </Badge>
+                    <span className="text-sm font-medium">{f.title}</span>
+                  </div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                    {f.detail}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {selected && (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Crosshair className="size-4 text-accent" />
+                  <CardTitle className="text-sm">
+                    Stress node #{selected.rank}
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-1 text-xs">
+                <Row k="Score" v={String(selected.score)} />
+                <Row
+                  k="Location"
+                  v={`${selected.location.lat.toFixed(3)}°, ${selected.location.lon.toFixed(3)}°`}
+                />
+                <Row k="Depth" v={`${selected.depthKm.toFixed(1)} km`} />
+                <Row k="Events in cell" v={String(selected.eventCount)} />
+                {localForSelected && (
+                  <Row
+                    k="Local SUPT"
+                    v={
+                      localForSelected.resonance.d_ij != null
+                        ? `${localForSelected.resonance.band} d=${localForSelected.resonance.d_ij.toFixed(3)}`
+                        : "—"
+                    }
+                  />
+                )}
+                <p className="pt-1 text-[11px] text-muted-foreground">{selected.interpretation}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      <EpochLogPanel
+        nodeId={node.id}
+        continuum={C}
+        swarm={swarm}
+        schumann={schumann}
+        density="compact"
+        enableLearn={false}
+      />
+
       {/* Hero — real SUPT resonance */}
       <Card className={cn("border-accent/25", TONE[report.verdict.tone] ?? TONE.none)}>
         <CardHeader className="pb-2">
@@ -299,117 +413,6 @@ export function SuptDetective({ events, node, swarm }: Props) {
           )}
         </CardContent>
       </Card>
-
-      {/* Map + findings — always */}
-      <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle>Stress & fracture map</CardTitle>
-            <CardDescription>
-              Density stress field, ranked nodes, fracture traces, lineaments, migration path.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-2 pt-0 sm:p-3 sm:pt-0">
-            <div className="h-[min(58vh,480px)] min-h-[300px]">
-              <SuptMap
-                node={node}
-                events={events}
-                planes={report.fabric.planes}
-                stressNodes={report.fabric.stressNodes}
-                lineaments={report.fabric.lineaments}
-                migration={report.fabric.migration}
-                stressField={report.fabric.stressField}
-                selectedNodeId={selected?.id}
-                onSelectNode={setSelectedNodeId}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col gap-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="size-4 text-warn" />
-                <CardTitle>Detective findings</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex max-h-[420px] flex-col gap-2 overflow-y-auto">
-              {report.findings.map((f) => (
-                <div
-                  key={f.id}
-                  className={cn(
-                    "rounded-lg border px-3 py-2",
-                    f.severity === "alert" && "border-destructive/35 bg-destructive/5",
-                    f.severity === "watch" && "border-warn/35 bg-warn/5",
-                    f.severity === "info" && "border-border bg-secondary/40",
-                  )}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant={
-                        f.severity === "alert"
-                          ? "critical"
-                          : f.severity === "watch"
-                            ? "warn"
-                            : "outline"
-                      }
-                    >
-                      {f.severity}
-                    </Badge>
-                    <span className="text-sm font-medium">{f.title}</span>
-                  </div>
-                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                    {f.detail}
-                  </p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {selected && (
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <Crosshair className="size-4 text-accent" />
-                  <CardTitle className="text-sm">
-                    Stress node #{selected.rank}
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-1 text-xs">
-                <Row k="Score" v={String(selected.score)} />
-                <Row
-                  k="Location"
-                  v={`${selected.location.lat.toFixed(3)}°, ${selected.location.lon.toFixed(3)}°`}
-                />
-                <Row k="Depth" v={`${selected.depthKm.toFixed(1)} km`} />
-                <Row k="Events in cell" v={String(selected.eventCount)} />
-                {localForSelected && (
-                  <Row
-                    k="Local SUPT"
-                    v={
-                      localForSelected.resonance.d_ij != null
-                        ? `${localForSelected.resonance.band} d=${localForSelected.resonance.d_ij.toFixed(3)}`
-                        : "—"
-                    }
-                  />
-                )}
-                <p className="pt-1 text-[11px] text-muted-foreground">{selected.interpretation}</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      <EpochLogPanel
-        nodeId={node.id}
-        continuum={C}
-        swarm={swarm}
-        schumann={schumann}
-        density="compact"
-        enableLearn={false}
-      />
 
       {/* Advanced-only stack */}
       {!focusMode && (
