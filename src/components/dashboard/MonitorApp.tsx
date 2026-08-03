@@ -14,7 +14,6 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,16 +40,20 @@ import type { SchumannSnapshot } from "@/lib/supt/schumann";
 import type { SpaceWeatherSnapshot } from "@/lib/supt/spaceWeather";
 import { SuptDetective } from "@/components/detective/SuptDetective";
 import { StressMapPanel } from "@/components/detective/StressMapPanel";
-import { listFocusNodes, getFocusNode } from "@/lib/seismic/focus-nodes";
+import { getFocusNode } from "@/lib/seismic/focus-nodes";
 import type { FocusNodeId, QuakeEvent, SwarmCluster } from "@/lib/seismic/types";
 import { fetchCatalog, type CatalogPayload, type WindowKey } from "@/lib/seismic/server";
 import { emptyCatalog, normalizeCatalog } from "@/lib/seismic/catalog";
 import { getAuthority } from "@/lib/seismic/authority";
 import {
   parseSesHandoff,
-  sentinelFocusUrl,
   syncBoardLocation,
 } from "@/lib/seismic/ses-handoff";
+import {
+  documentTitleForNode,
+  nodeMonitorSubtitle,
+  nodeMonitorTitle,
+} from "@/lib/seismic/branding";
 import { classifySwarmIntensity } from "@/lib/seismic/intensity";
 import {
   getQuietMode,
@@ -139,7 +142,6 @@ export function MonitorApp({ initial }: Props) {
   const [quietSource, setQuietSource] = useState<QuietSource>(() => getQuietSource());
   const [filtersOpen, setFiltersOpen] = useState(false);
   const vp = useViewport();
-  const isMobile = vp.isMobile;
   /** User override for header; null → responsive default */
   const [headerCollapsedUser, setHeaderCollapsedUser] = useState<boolean | null>(
     () => getHeaderCollapsedPref(),
@@ -157,7 +159,6 @@ export function MonitorApp({ initial }: Props) {
   }, []);
 
   const node = useMemo(() => getFocusNode(nodeId), [nodeId]);
-  const nodes = useMemo(() => listFocusNodes(), []);
   const authority = useMemo(() => getAuthority(nodeId), [nodeId]);
 
   const load = useCallback(
@@ -210,6 +211,12 @@ export function MonitorApp({ initial }: Props) {
   useEffect(() => {
     syncBoardLocation({ nodeId, windowKey, fromSes, replace: true });
   }, [nodeId, windowKey, fromSes]);
+
+  // Browser tab title tracks active node monitor
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.title = documentTitleForNode(nodeId);
+  }, [nodeId]);
 
   const selectNetworkNode = useCallback((id: FocusNodeId) => {
     setNodeId(id);
@@ -342,145 +349,124 @@ export function MonitorApp({ initial }: Props) {
         ref={headerRef}
         className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-md"
       >
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-0.5 px-2 py-1 sm:px-3 sm:py-1.5">
-          {/* Always-on: identity · pulse · collapse · actions */}
-          <div className="flex items-center gap-1 sm:gap-1.5">
-            <div className="flex min-w-0 shrink items-center gap-1">
-              <Satellite className="size-3.5 shrink-0 text-accent" />
-              <h1 className="truncate text-[13px] font-semibold tracking-tight sm:text-sm">
-                {headerCollapsed && isMobile ? node.code : node.name}
-              </h1>
-              {!headerCollapsed && (
-                <Badge variant="live" className="hidden h-5 px-1 text-[10px] sm:inline-flex">
-                  #{node.networkOrder}
-                </Badge>
-              )}
-              {quiet && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                  Quiet
-                </Badge>
-              )}
-            </div>
-
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-                <SesNetworkBar
-                  nodeId={nodeId}
-                  fromSes={fromSes}
-                  onSelectNode={selectNetworkNode}
-                  onDismissFromSes={() => setFromSes(false)}
-                  className="shrink-0"
-                />
-                <PulseStrip
-                  continuum={continuum}
-                  intensity={intensity}
-                  newSincePoll={newSincePoll}
-                  rate6h={swarm.rate6h}
-                  className="min-w-0 flex-1 border-0 bg-transparent px-0 py-0"
-                />
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-0.5">
-              <Button
-                type="button"
-                variant={headerCollapsed ? "default" : "ghost"}
-                size="sm"
-                className="h-8 w-8 px-0"
-                onClick={toggleHeader}
-                title={headerCollapsed ? "Expand header" : "Collapse header — more map"}
-                aria-expanded={!headerCollapsed}
-                aria-label={headerCollapsed ? "Expand header" : "Collapse header"}
-              >
-                {headerCollapsed ? (
-                  <ChevronDown className="size-3.5" />
-                ) : (
-                  <ChevronUp className="size-3.5" />
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-1 px-2 py-1.5 sm:px-3">
+          {/* Row 1: full product title · switcher (acronyms) · tools */}
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Satellite className="size-3.5 shrink-0 text-accent" aria-hidden />
+                <h1 className="min-w-0 text-[13px] font-semibold leading-snug tracking-tight sm:text-[15px]">
+                  <span className="block truncate sm:inline">
+                    {nodeMonitorTitle(nodeId)}
+                  </span>
+                </h1>
+                {quiet && (
+                  <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
+                    Quiet
+                  </Badge>
                 )}
-              </Button>
-              <ShareMenu
-                ctx={{
-                  nodeId,
-                  windowKey,
-                  eii: continuum.eii,
-                  rpam: continuum.rpam,
-                  rate6h: swarm.rate6h,
-                  eventCount: events.length,
-                  largestMag: largest ? magValue(largest.magnitude) : null,
-                }}
-              />
-              {!headerCollapsed && <ThemeToggle />}
-              <Button
-                variant={quiet ? "default" : "ghost"}
-                size="sm"
-                onClick={toggleQuiet}
-                className="h-8 w-8 px-0"
-                title={
-                  quiet
-                    ? "Quiet on — library links hidden (tap to expand)"
-                    : "Quiet mode — hide secondary links"
-                }
-              >
-                {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void load()}
-                disabled={loading}
-                className="h-8 w-8 px-0"
-                title="Refresh"
-              >
-                <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-              </Button>
+              </div>
               {!headerCollapsed && (
+                <p className="mt-0.5 truncate pl-5 text-[10px] leading-tight text-muted-foreground sm:text-[11px]">
+                  {nodeMonitorSubtitle(
+                    node.networkOrder,
+                    authority.label.split("(")[0]?.trim() || authority.label,
+                  )}
+                </p>
+              )}
+              {headerCollapsed && (
+                <p className="mt-0.5 truncate pl-5 text-[10px] leading-tight text-muted-foreground">
+                  Sun-Earth-Sentinel · #{node.networkOrder}
+                </p>
+              )}
+            </div>
+
+            <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+              <SesNetworkBar
+                nodeId={nodeId}
+                fromSes={fromSes}
+                onSelectNode={selectNetworkNode}
+                onDismissFromSes={() => setFromSes(false)}
+              />
+              <div className="flex items-center gap-0.5">
                 <Button
-                  variant={autoRefresh ? "default" : "outline"}
+                  type="button"
+                  variant={headerCollapsed ? "default" : "ghost"}
                   size="sm"
-                  onClick={() => setAutoRefresh((v) => !v)}
-                  className="h-8 min-w-9 px-1.5 font-mono text-[10px]"
-                  title="Auto-refresh"
+                  className="h-8 w-8 px-0"
+                  onClick={toggleHeader}
+                  title={headerCollapsed ? "Expand header" : "Collapse header — more map"}
+                  aria-expanded={!headerCollapsed}
+                  aria-label={headerCollapsed ? "Expand header" : "Collapse header"}
                 >
-                  {autoRefresh ? "60s" : "Off"}
+                  {headerCollapsed ? (
+                    <ChevronDown className="size-3.5" />
+                  ) : (
+                    <ChevronUp className="size-3.5" />
+                  )}
                 </Button>
-              )}
-              {!headerCollapsed && !quiet && vp.bp !== "xs" && (
-                <a
-                  href={sentinelFocusUrl(nodeId)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hidden h-8 items-center gap-1 rounded-md border border-accent/35 bg-accent/10 px-2 text-[10px] font-semibold text-accent hover:bg-accent/20 sm:inline-flex"
-                  title="Open Sun-Earth-Sentinel live map"
+                <ShareMenu
+                  ctx={{
+                    nodeId,
+                    windowKey,
+                    eii: continuum.eii,
+                    rpam: continuum.rpam,
+                    rate6h: swarm.rate6h,
+                    eventCount: events.length,
+                    largestMag: largest ? magValue(largest.magnitude) : null,
+                  }}
+                />
+                {!headerCollapsed && <ThemeToggle />}
+                <Button
+                  variant={quiet ? "default" : "ghost"}
+                  size="sm"
+                  onClick={toggleQuiet}
+                  className="h-8 w-8 px-0"
+                  title={
+                    quiet
+                      ? "Quiet on — library links hidden (tap to expand)"
+                      : "Quiet mode — hide secondary links"
+                  }
                 >
-                  SES hub
-                  <ExternalLink className="size-2.5" />
-                </a>
-              )}
+                  {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void load()}
+                  disabled={loading}
+                  className="h-8 w-8 px-0"
+                  title="Refresh"
+                >
+                  <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+                </Button>
+                {!headerCollapsed && (
+                  <Button
+                    variant={autoRefresh ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAutoRefresh((v) => !v)}
+                    className="h-8 min-w-9 px-1.5 font-mono text-[10px]"
+                    title="Auto-refresh"
+                  >
+                    {autoRefresh ? "60s" : "Off"}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Collapsible: node · window · filters */}
+          {/* Row 2: pulse alone — full width, no title collision */}
+          <PulseStrip
+            continuum={continuum}
+            intensity={intensity}
+            newSincePoll={newSincePoll}
+            rate6h={swarm.rate6h}
+            className="w-full min-w-0 border-0 bg-transparent px-0 py-0"
+          />
+
+          {/* Collapsible: time window · filters only (nodes live in switcher) */}
           {!headerCollapsed && (
             <div className="flex flex-wrap items-center gap-1 pt-0.5">
-              <div className="flex rounded-md border border-border p-0.5">
-                {nodes.map((n) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => selectNetworkNode(n.id)}
-                    className={cn(
-                      "min-h-7 rounded px-2 text-[11px] font-medium transition-colors",
-                      nodeId === n.id
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                    )}
-                  >
-                    <span className="font-mono text-[9px] opacity-70">#{n.networkOrder}</span>{" "}
-                    {n.code}
-                  </button>
-                ))}
-              </div>
-
               <div className="flex gap-0.5 overflow-x-auto">
                 {WINDOWS.map((w) => (
                   <button
@@ -526,41 +512,19 @@ export function MonitorApp({ initial }: Props) {
                   )}
                 />
               </button>
-
-              {!quiet && vp.isDesktop && (
-                <span className="ml-auto hidden text-[10px] text-muted-foreground lg:inline">
-                  SES network · #1 TK · #2 CF
-                </span>
-              )}
             </div>
           )}
 
-          {/* Collapsed quick node/window chips — essential only */}
+          {/* Collapsed: time windows only (app switch is in top rail) */}
           {headerCollapsed && (
             <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-              {nodes.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  onClick={() => selectNetworkNode(n.id)}
-                  className={cn(
-                    "min-h-6 shrink-0 rounded px-1.5 font-mono text-[10px]",
-                    nodeId === n.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground",
-                  )}
-                >
-                  {n.code}
-                </button>
-              ))}
-              <span className="text-border">|</span>
               {WINDOWS.map((w) => (
                 <button
                   key={w.key}
                   type="button"
                   onClick={() => setWindowKey(w.key)}
                   className={cn(
-                    "min-h-6 shrink-0 rounded px-1 font-mono text-[10px] tabular-nums",
+                    "min-h-6 shrink-0 rounded px-1.5 font-mono text-[10px] tabular-nums",
                     windowKey === w.key
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground",

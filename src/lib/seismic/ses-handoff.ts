@@ -42,7 +42,7 @@ export type SesNetworkHop = {
   inAppNode: FocusNodeId | null;
 };
 
-/** SES network rails — hub + published swarm boards. */
+/** SES network rails — hub + published swarm boards. Full titles for a11y/tooltips. */
 export const SES_NETWORK: SesNetworkHop[] = [
   {
     id: "ses-hub",
@@ -57,7 +57,7 @@ export const SES_NETWORK: SesNetworkHop[] = [
     id: "campi-flegrei",
     dragonId: "mediterranean",
     short: "CF",
-    label: "Campi Flegrei",
+    label: "Campi Flegrei Monitor",
     order: 2,
     href: CAMPI_BOARD_URL,
     inAppNode: "campi-flegrei",
@@ -66,7 +66,7 @@ export const SES_NETWORK: SesNetworkHop[] = [
     id: "tonga-kermadec",
     dragonId: "tonga",
     short: "TK",
-    label: "Tonga–Kermadec",
+    label: "Tonga–Kermadec Monitor",
     order: 1,
     href: TONGA_BOARD_URL,
     inAppNode: "tonga-kermadec",

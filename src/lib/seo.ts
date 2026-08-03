@@ -9,7 +9,7 @@ export const SITE_TITLE = "Campi Flegrei Monitor · Sun-Earth-Sentinel";
 
 /** Keep under ~200 chars for X card body. */
 export const SITE_DESCRIPTION =
-  "Live INGV Campi Flegrei swarm monitor — depth, SUPT Continuum (EII/RPAM), Schumann, SES node #2. Not a forecast.";
+  "Live Campi Flegrei seismic & volcano monitor (INGV-OV) — depth, swarms, SUPT Continuum. Sun-Earth-Sentinel focus node #2. Not a forecast.";
 
 /**
  * Absolute OG image. Bump CARD_VERSION whenever art or tags change so X

@@ -1,12 +1,12 @@
-import { ArrowLeft, ExternalLink, Network } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { FocusNodeId } from "@/lib/seismic/types";
 import {
   SES_NETWORK,
-  companionBoardUrl,
   resolveNetworkAction,
   sentinelFocusUrl,
   type SesNetworkHop,
 } from "@/lib/seismic/ses-handoff";
+import { NETWORK_FULL, nodeMonitorTitle } from "@/lib/seismic/branding";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -15,12 +15,10 @@ type Props = {
   onSelectNode: (id: FocusNodeId) => void;
   onDismissFromSes?: () => void;
   className?: string;
-  /** Compact single-row for sticky header */
-  compact?: boolean;
 };
 
 /**
- * SES network rail — hub + CF + TK with seamless in-app node switch and return to Sentinel.
+ * Compact app switcher — acronyms only; full titles live in tooltips + page H1.
  */
 export function SesNetworkBar({
   nodeId,
@@ -28,35 +26,29 @@ export function SesNetworkBar({
   onSelectNode,
   onDismissFromSes,
   className,
-  compact = true,
 }: Props) {
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center gap-1",
-        !compact && "rounded-lg border border-border bg-card/80 px-2 py-1.5",
-        className,
-      )}
-      role="navigation"
-      aria-label="Sun-Earth-Sentinel network"
+    <nav
+      className={cn("flex shrink-0 items-center gap-1", className)}
+      aria-label={`${NETWORK_FULL} app switcher`}
     >
       {fromSes && (
         <a
           href={sentinelFocusUrl(nodeId)}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-accent/40 bg-accent/15 px-2 text-[11px] font-semibold text-accent hover:bg-accent/25"
-          title="Return to Sun-Earth-Sentinel with this node focused"
+          className="inline-flex h-7 max-w-[9.5rem] items-center gap-1 rounded-md border border-accent/40 bg-accent/15 px-1.5 text-[10px] font-semibold text-accent hover:bg-accent/25 sm:max-w-none sm:px-2 sm:text-[11px]"
+          title={`Return to ${NETWORK_FULL}`}
         >
-          <ArrowLeft className="size-3.5" />
-          Sentinel
+          <ArrowLeft className="size-3 shrink-0" />
+          <span className="truncate sm:hidden">Back</span>
+          <span className="hidden truncate sm:inline">← {NETWORK_FULL}</span>
         </a>
       )}
 
-      <span className="inline-flex items-center gap-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-        <Network className="size-3 opacity-70" />
-        {!compact && "Network"}
-      </span>
-
-      <div className="flex items-center rounded-md border border-border p-0.5">
+      <div
+        className="flex items-center rounded-md border border-border bg-card/60 p-0.5"
+        role="group"
+        aria-label="Switch app or focus node"
+      >
         {SES_NETWORK.map((hop) => (
           <HopButton
             key={hop.id}
@@ -67,39 +59,24 @@ export function SesNetworkBar({
         ))}
       </div>
 
-      {!fromSes && (
-        <a
-          href={sentinelFocusUrl(nodeId)}
-          className="hidden h-7 items-center gap-1 rounded-md border border-border px-2 text-[10px] font-medium text-muted-foreground hover:border-accent/40 hover:text-accent sm:inline-flex"
-          title="Open Sun-Earth-Sentinel live map on this node"
-        >
-          Hub
-          <ExternalLink className="size-2.5 opacity-70" />
-        </a>
-      )}
-
-      <a
-        href={companionBoardUrl(nodeId)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="hidden h-7 items-center gap-1 rounded-md px-1.5 text-[10px] text-muted-foreground hover:text-foreground lg:inline-flex"
-        title="Open the other published swarm board"
-      >
-        {nodeId === "campi-flegrei" ? "TK board" : "CF board"}
-        <ExternalLink className="size-2.5 opacity-60" />
-      </a>
-
       {fromSes && onDismissFromSes && (
         <button
           type="button"
           onClick={onDismissFromSes}
-          className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+          className="hidden text-[10px] text-muted-foreground hover:text-foreground sm:inline"
+          title="Dismiss return banner — stay on this monitor"
         >
-          Stay here
+          Stay
         </button>
       )}
-    </div>
+    </nav>
   );
+}
+
+function hopTitle(hop: SesNetworkHop): string {
+  if (hop.id === "ses-hub") return NETWORK_FULL;
+  if (hop.inAppNode) return nodeMonitorTitle(hop.inAppNode);
+  return hop.label;
 }
 
 function HopButton({
@@ -115,9 +92,10 @@ function HopButton({
   const active =
     action.kind === "current" ||
     (hop.inAppNode != null && hop.inAppNode === currentNode);
+  const full = hopTitle(hop);
 
   const base =
-    "inline-flex h-7 min-w-[2rem] items-center justify-center gap-0.5 rounded px-2 text-[11px] font-medium transition-colors";
+    "inline-flex h-7 min-w-[2rem] items-center justify-center gap-0.5 rounded px-1.5 text-[11px] font-semibold tabular-nums transition-colors sm:px-2";
 
   if (action.kind === "external") {
     return (
@@ -129,11 +107,12 @@ function HopButton({
             ? "text-accent hover:bg-accent/10"
             : "text-muted-foreground hover:bg-secondary hover:text-foreground",
         )}
-        title={hop.label}
+        title={full}
+        aria-label={full}
       >
         {hop.short}
-        {hop.order != null && (
-          <span className="font-mono text-[9px] opacity-60">#{hop.order}</span>
+        {hop.id === "ses-hub" && (
+          <ExternalLink className="hidden size-2.5 opacity-60 sm:inline" />
         )}
       </a>
     );
@@ -151,15 +130,11 @@ function HopButton({
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-secondary hover:text-foreground",
       )}
-      title={hop.label}
+      title={full}
+      aria-label={full}
       aria-current={active ? "page" : undefined}
     >
       {hop.short}
-      {hop.order != null && (
-        <span className={cn("font-mono text-[9px]", active ? "opacity-80" : "opacity-60")}>
-          #{hop.order}
-        </span>
-      )}
     </button>
   );
 }
