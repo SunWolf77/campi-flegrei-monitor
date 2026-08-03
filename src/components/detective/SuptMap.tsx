@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Expand, HelpCircle, Home, Minimize2, X } from "lucide-react";
+import { ChevronDown, Expand, HelpCircle, Home, Layers, Minimize2, X } from "lucide-react";
 import type { FocusNode, QuakeEvent } from "@/lib/seismic/types";
 import type { FracturePlane, StressNode, Lineament, MigrationStep } from "@/lib/seismic/supt";
 import { leafletMagRadius, timeAgeColor, eventAge01 } from "@/lib/seismic/colors";
@@ -73,6 +73,8 @@ export function SuptMap({
   const drawRef = useRef<() => Promise<void>>(async () => {});
   const [fullscreen, setFullscreen] = useState(defaultFullscreen);
   const [helpOpen, setHelpOpen] = useState(false);
+  /** Layers panel collapsed by default — critical on mobile so map stays clear */
+  const [layersOpen, setLayersOpen] = useState(false);
   /** Toggle layers — shape + colour in legend for clarity */
   const [layers, setLayers] = useState({
     field: true,
@@ -87,6 +89,11 @@ export function SuptMap({
   layersRefState.current = layers;
   const toggleLayer = (k: keyof typeof layers) =>
     setLayers((prev) => ({ ...prev, [k]: !prev[k] }));
+
+  // Entering fullscreen → collapse layers so map is unobstructed on phones
+  useEffect(() => {
+    if (fullscreen) setLayersOpen(false);
+  }, [fullscreen]);
 
   const tRange = useMemo(() => {
     if (!events.length) {
@@ -160,6 +167,7 @@ export function SuptMap({
         return;
       if (e.key === "Escape") {
         if (helpOpen) setHelpOpen(false);
+        else if (layersOpen) setLayersOpen(false);
         else if (fullscreen) setFs(false);
         return;
       }
@@ -169,7 +177,10 @@ export function SuptMap({
         return;
       }
       const k = e.key.toLowerCase();
-      if (k === "h" && !e.metaKey && !e.ctrlKey) {
+      if (k === "l" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setLayersOpen((v) => !v);
+      } else if (k === "h" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         void goHome();
       } else if (k === "g" && !e.metaKey && !e.ctrlKey) {
@@ -189,7 +200,7 @@ export function SuptMap({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fullscreen, helpOpen, setFs, goHome, fitToFabric]);
+  }, [fullscreen, helpOpen, layersOpen, setFs, goHome, fitToFabric]);
 
   useEffect(() => {
     let cancelled = false;
@@ -563,60 +574,88 @@ export function SuptMap({
         </div>
       )}
 
-      {/* Interactive legend — shape + colour + toggle */}
-      <div className="absolute bottom-3 left-3 z-20 w-[200px] rounded-md border border-border bg-card/98 p-2 text-[10px] shadow-lg backdrop-blur-sm">
-        <div className="mb-1.5 font-semibold text-foreground">Layers · tap to toggle</div>
-        <div className="flex flex-col gap-0.5">
-          <LayerToggle
-            on={layers.nodes}
-            onClick={() => toggleLayer("nodes")}
-            glyph={<GlyphNode />}
-            label="Stress nodes"
-            hint="numbered amber discs"
-          />
-          <LayerToggle
-            on={layers.fractures}
-            onClick={() => toggleLayer("fractures")}
-            glyph={<GlyphLine color={C.fracture} />}
-            label="Fracture planes"
-            hint="magenta lines"
-          />
-          <LayerToggle
-            on={layers.axes}
-            onClick={() => toggleLayer("axes")}
-            glyph={<GlyphAxes />}
-            label="σ axes"
-            hint="black ∥ · blue ⊥"
-          />
-          <LayerToggle
-            on={layers.lineaments}
-            onClick={() => toggleLayer("lineaments")}
-            glyph={<GlyphDash color={C.lineament} />}
-            label="Lineaments"
-            hint="indigo dashed"
-          />
-          <LayerToggle
-            on={layers.migration}
-            onClick={() => toggleLayer("migration")}
-            glyph={<GlyphLine color={C.migration} thick />}
-            label="Migration"
-            hint="teal path"
-          />
-          <LayerToggle
-            on={layers.field}
-            onClick={() => toggleLayer("field")}
-            glyph={<GlyphBlob color={C.fieldMid} />}
-            label="Stress field"
-            hint="violet density glow"
-          />
-          <LayerToggle
-            on={layers.events}
-            onClick={() => toggleLayer("events")}
-            glyph={<GlyphDot />}
-            label="Earthquakes"
-            hint="small age dots"
-          />
-        </div>
+      {/* Layers: collapsed chip by default (mobile-safe); expands on tap */}
+      <div className="absolute bottom-3 left-3 z-20 max-w-[min(200px,calc(100vw-1.5rem))]">
+        {!layersOpen ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-9 gap-1.5 border border-border bg-card/95 px-2.5 text-[11px] shadow-md backdrop-blur-sm"
+            onClick={() => setLayersOpen(true)}
+            title="Layers (L)"
+            aria-expanded={false}
+          >
+            <Layers className="size-3.5" />
+            Layers
+          </Button>
+        ) : (
+          <div className="rounded-md border border-border bg-card/98 p-2 text-[10px] shadow-lg backdrop-blur-sm">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className="font-semibold text-foreground">Layers · tap to toggle</span>
+              <button
+                type="button"
+                onClick={() => setLayersOpen(false)}
+                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+                title="Collapse layers (Esc)"
+                aria-label="Collapse layers"
+              >
+                <ChevronDown className="size-3.5" />
+              </button>
+            </div>
+            <div className="flex max-h-[min(50vh,320px)] flex-col gap-0.5 overflow-y-auto">
+              <LayerToggle
+                on={layers.nodes}
+                onClick={() => toggleLayer("nodes")}
+                glyph={<GlyphNode />}
+                label="Stress nodes"
+                hint="numbered amber discs"
+              />
+              <LayerToggle
+                on={layers.fractures}
+                onClick={() => toggleLayer("fractures")}
+                glyph={<GlyphLine color={C.fracture} />}
+                label="Fracture planes"
+                hint="magenta lines"
+              />
+              <LayerToggle
+                on={layers.axes}
+                onClick={() => toggleLayer("axes")}
+                glyph={<GlyphAxes />}
+                label="σ axes"
+                hint="black ∥ · blue ⊥"
+              />
+              <LayerToggle
+                on={layers.lineaments}
+                onClick={() => toggleLayer("lineaments")}
+                glyph={<GlyphDash color={C.lineament} />}
+                label="Lineaments"
+                hint="indigo dashed"
+              />
+              <LayerToggle
+                on={layers.migration}
+                onClick={() => toggleLayer("migration")}
+                glyph={<GlyphLine color={C.migration} thick />}
+                label="Migration"
+                hint="teal path"
+              />
+              <LayerToggle
+                on={layers.field}
+                onClick={() => toggleLayer("field")}
+                glyph={<GlyphBlob color={C.fieldMid} />}
+                label="Stress field"
+                hint="violet density glow"
+              />
+              <LayerToggle
+                on={layers.events}
+                onClick={() => toggleLayer("events")}
+                glyph={<GlyphDot />}
+                label="Earthquakes"
+                hint="small age dots"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {fullscreen && (
@@ -645,10 +684,12 @@ export function SuptMap({
             <dd>Fabric — fit stress nodes + fractures</dd>
             <dt className="text-accent">F</dt>
             <dd>Toggle fullscreen</dd>
+            <dt className="text-accent">L</dt>
+            <dd>Toggle layers panel</dd>
             <dt className="text-accent">+ / −</dt>
             <dd>Zoom in / out</dd>
             <dt className="text-accent">Esc</dt>
-            <dd>Exit fullscreen / close help</dd>
+            <dd>Close layers / help / exit fullscreen</dd>
             <dt className="text-accent">?</dt>
             <dd>This help</dd>
           </dl>
