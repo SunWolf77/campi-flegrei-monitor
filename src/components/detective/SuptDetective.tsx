@@ -17,11 +17,11 @@ import {
 } from "@/lib/supt/detective";
 import type { StressNode } from "@/lib/seismic/supt";
 import {
-  SUPT_ALPHA,
   SUPT_ANCHORS,
   SUPT_COPYRIGHT,
   bandPlainLabel,
 } from "@/lib/supt/probe";
+import type { ContinuumReport } from "@/lib/supt/continuum";
 import { fetchSpaceWeather } from "@/lib/supt/kpServer";
 import type { SpaceWeatherSnapshot } from "@/lib/supt/spaceWeather";
 import { fetchSchumann } from "@/lib/supt/earthFeedsServer";
@@ -237,7 +237,7 @@ export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
               <ShieldAlert className="size-4 text-warn" />
               <CardTitle>Detective findings</CardTitle>
               <Badge variant="outline" className="font-mono text-[10px]">
-                SUPT · fabric
+                map + window
               </Badge>
             </div>
             <CardDescription className="text-[11px]">
@@ -287,160 +287,265 @@ export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
         enableLearn={false}
       />
 
-      {/* Hero — real SUPT resonance */}
+      {/* Hero — plain language by default; Technical reveals operator codes */}
       <Card className={cn("border-accent/25", TONE[report.verdict.tone] ?? TONE.none)}>
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-center gap-2">
             <Brain className="size-4 text-accent" />
-            <CardTitle>SUPT swarm detective</CardTitle>
-            <Badge variant="live">Sheppard · SES</Badge>
-            <Badge variant="outline" className="font-mono">
-              α={SUPT_ALPHA}
+            <CardTitle>Swarm detective</CardTitle>
+            <Badge variant="outline" className="text-[10px]">
+              observational
             </Badge>
-            <Badge
-              variant={
-                C.rpam === "ACTIVE" ? "critical" : C.rpam === "ELEVATED" ? "warn" : "outline"
-              }
-            >
-              EII {C.eii.toFixed(2)} · {C.rpam}
-            </Badge>
-            <Button
-              type="button"
-              size="sm"
-              variant={focusMode ? "default" : "outline"}
-              className="ml-auto h-7 text-[11px]"
-              onClick={toggleFocus}
-            >
-              {focusMode ? "Focus mode" : "Advanced"}
-            </Button>
+            <div className="ml-auto flex items-center gap-1 rounded-lg border border-border p-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!focusMode) toggleFocus();
+                }}
+                className={cn(
+                  "h-7 rounded-md px-2.5 text-[11px] font-medium transition-colors",
+                  focusMode
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Simple
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (focusMode) toggleFocus();
+                }}
+                className={cn(
+                  "h-7 rounded-md px-2.5 text-[11px] font-medium transition-colors",
+                  !focusMode
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Technical
+              </button>
+            </div>
           </div>
           <CardDescription>
             {focusMode
-              ? "Focus: findings · continuum · fabric. Switch to Advanced for ETAS, harmonic, tables."
-              : "Advanced: full pipeline — ETAS, harmonic fingerprint, planes, local probes, LAIC."}{" "}
-            Not a forecast.
+              ? "Plain reading of this window’s timing and energy. Not a forecast."
+              : "Operator view — SUPT codes, ETAS, harmonic, tables. Not a forecast."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-center sm:text-left">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              Current window · {report.sampleSize} hypocentres
+              This window · {report.sampleSize} events
             </div>
             <p className="mt-1 text-lg font-semibold leading-snug sm:text-xl">
               {report.verdict.title}
             </p>
-            {report.resonance.band !== "N/A" && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {report.resonance.separated
-                  ? bandPlainLabel(report.resonance.band)
-                  : "Consistent with random spacing"}
-                {report.resonance.d_ij != null && (
-                  <span className="font-mono">
-                    {" "}
-                    · d={report.resonance.d_ij.toFixed(3)} · {report.resonance.band}
-                    {report.resonance.z != null && ` · z=${report.resonance.z.toFixed(2)}`}
-                  </span>
-                )}
-              </p>
-            )}
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-foreground/90">
               {report.reading}
             </p>
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-              {report.detectiveSummary}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowTech((v) => !v)}
-              className="mt-2 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-            >
-              {showTech ? "Hide" : "Show"} SUPT operator detail
-            </button>
-            {showTech && (
-              <p className="mt-1 rounded-md border border-border bg-card/80 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
-                {report.readingTech}
+            {focusMode ? (
+              <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                {plainDetectiveBlurb(report)}
               </p>
+            ) : (
+              <>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                  {report.detectiveSummary}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowTech((v) => !v)}
+                  className="mt-2 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {showTech ? "Hide" : "Show"} SUPT operator detail
+                </button>
+                {showTech && (
+                  <p className="mt-1 rounded-md border border-border bg-card/80 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
+                    {report.readingTech}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-            <Mini
-              label="d_ij"
-              value={report.resonance.d_ij != null ? report.resonance.d_ij.toFixed(3) : "—"}
-              hint={report.resonance.band}
-            />
-            <Mini
-              label="vs shuffle"
-              value={
-                report.resonance.d_ij == null
-                  ? "—"
-                  : report.resonance.separated
-                    ? "Unusual"
-                    : "Typical"
-              }
-              hint={
-                report.resonance.z != null
-                  ? `z=${report.resonance.z.toFixed(2)}`
-                  : "null baseline"
-              }
-              warn={report.resonance.separated}
-            />
-            <Mini label="ETAS" value={report.etas.verdict} hint={`n=${report.etas.nEvents}`} />
-            <Mini
-              label="EII"
-              value={C.eii.toFixed(3)}
-              hint={C.rpam}
-              warn={C.eii >= 0.6}
-            />
-            <Mini label="CCI" value={C.cci.toFixed(3)} hint={C.cciLabel} />
-            <Mini
-              label="SR"
-              value={String(C.schumannIndex || "—")}
-              hint={`×${C.schumannFactor.toFixed(2)}`}
-            />
-            <Mini
-              label="Stress"
-              value={String(report.fabric.stressNodes.length)}
-              hint="nodes"
-            />
-            <Mini
-              label="Planes"
-              value={String(report.fabric.planes.length)}
-              hint="fracture"
-            />
-          </div>
+          {focusMode ? (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <PlainStat
+                label="Timing"
+                value={
+                  report.resonance.d_ij == null
+                    ? "Need more events"
+                    : report.resonance.separated
+                      ? bandPlainLabel(report.resonance.band)
+                      : "Looks ordinary"
+                }
+                hint="How quakes space in time"
+                warn={report.resonance.separated}
+              />
+              <PlainStat
+                label="Aftershock check"
+                value={plainEtas(report.etas.verdict)}
+                hint="Is order just clustering?"
+                warn={report.etas.verdict === "survives"}
+              />
+              <PlainStat
+                label="Energy load"
+                value={plainEnergy(C.eii, C.rpam)}
+                hint={`${Math.round(C.shallowRatio * 100)}% shallow · max M${formatMag(C.mdMax)}`}
+                warn={C.eii >= 0.6}
+              />
+              <PlainStat
+                label="Stress zones"
+                value={`${report.fabric.stressNodes.length} ranked`}
+                hint={
+                  selected
+                    ? `#1 score ${report.fabric.stressNodes[0]?.score ?? "—"} on map`
+                    : "Amber discs on map"
+                }
+              />
+              <PlainStat
+                label="Fracture lines"
+                value={
+                  report.fabric.planes.length
+                    ? `${report.fabric.planes.length} fitted`
+                    : "None strong"
+                }
+                hint="Magenta traces on map"
+              />
+              <PlainStat
+                label="Space weather"
+                value={plainSpaceWeather(C.kp, C.schumannIndex)}
+                hint={`Kp ${C.kp.toFixed(1)} · Schumann ${C.schumannIndex || "—"}`}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+              <Mini
+                label="d_ij"
+                value={report.resonance.d_ij != null ? report.resonance.d_ij.toFixed(3) : "—"}
+                hint={report.resonance.band}
+              />
+              <Mini
+                label="vs shuffle"
+                value={
+                  report.resonance.d_ij == null
+                    ? "—"
+                    : report.resonance.separated
+                      ? "Unusual"
+                      : "Typical"
+                }
+                hint={
+                  report.resonance.z != null
+                    ? `z=${report.resonance.z.toFixed(2)}`
+                    : "null baseline"
+                }
+                warn={report.resonance.separated}
+              />
+              <Mini label="ETAS" value={report.etas.verdict} hint={`n=${report.etas.nEvents}`} />
+              <Mini label="EII" value={C.eii.toFixed(3)} hint={C.rpam} warn={C.eii >= 0.6} />
+              <Mini label="CCI" value={C.cci.toFixed(3)} hint={C.cciLabel} />
+              <Mini
+                label="SR"
+                value={String(C.schumannIndex || "—")}
+                hint={`×${C.schumannFactor.toFixed(2)}`}
+              />
+              <Mini
+                label="Stress"
+                value={String(report.fabric.stressNodes.length)}
+                hint="nodes"
+              />
+              <Mini
+                label="Planes"
+                value={String(report.fabric.planes.length)}
+                hint="fracture"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Continuum — always (core pulse) */}
+      {/* Continuum — plain vs technical */}
       <Card className="border-warn/20">
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-center gap-2">
             <Sun className="size-4 text-warn" />
-            <CardTitle className="text-sm">ReSunance Continuum — EII / RPAM / CCI</CardTitle>
-            <Badge variant="outline" className="text-[10px]">
-              v6.5 + Schumann
-            </Badge>
+            <CardTitle className="text-sm">
+              {focusMode ? "Energy & space weather" : "ReSunance Continuum — EII / RPAM / CCI"}
+            </CardTitle>
+            {!focusMode && (
+              <Badge variant="outline" className="text-[10px]">
+                v6.5 + Schumann
+              </Badge>
+            )}
           </div>
+          {focusMode && (
+            <CardDescription className="text-[11px]">
+              How “loaded” this window looks from quakes + live space feeds — still not a forecast.
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="space-y-3 text-xs">
-          <div className="flex flex-wrap gap-1.5">
-            <FeedPill label="NOAA Kp" status={C.feeds.kp} />
-            <FeedPill label="Solar wind" status={C.feeds.plasma} />
-            <FeedPill label="Seismic" status={C.feeds.seismic} />
-            <FeedPill label="Schumann" status={C.feeds.schumann} />
-            <Badge variant="outline" className="font-mono text-[10px]">
-              ψₛ={C.psiS.toFixed(2)} · {C.psiSource}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Mini label="EII" value={C.eii.toFixed(3)} hint="with Schumann" warn={C.eii >= 0.6} />
-            <Mini label="EII base" value={C.eiiBase.toFixed(3)} hint="pre-ELF" />
-            <Mini label="RPAM" value={C.rpam} hint="phase" warn={C.rpam !== "MONITORING"} />
-            <Mini label="CCI" value={C.cci.toFixed(3)} hint={C.cciLabel} />
-          </div>
-          {!focusMode && (
+          {focusMode ? (
             <>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <PlainStat
+                  label="Energy load"
+                  value={plainEnergy(C.eii, C.rpam)}
+                  hint={`index ${C.eii.toFixed(2)}`}
+                  warn={C.eii >= 0.6}
+                />
+                <PlainStat
+                  label="Quake contribution"
+                  value={C.eiiBase >= 0.6 ? "Strong" : C.eiiBase >= 0.35 ? "Moderate" : "Light"}
+                  hint={`max M${formatMag(C.mdMax)} · mean M${formatMag(C.mdMean)}`}
+                />
+                <PlainStat
+                  label="Geomagnetic"
+                  value={geomagPlain(C.kp)}
+                  hint={`Kp ${C.kp.toFixed(1)}`}
+                />
+                <PlainStat
+                  label="Schumann"
+                  value={
+                    C.schumannIndex >= 70
+                      ? "Elevated"
+                      : C.schumannIndex >= 40
+                        ? "Active"
+                        : C.schumannIndex > 0
+                          ? "Quiet"
+                          : "No data"
+                  }
+                  hint={C.schumannIndex ? `SR ${C.schumannIndex}` : "feed"}
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <FeedPill label="Kp" status={C.feeds.kp} />
+                <FeedPill label="Solar wind" status={C.feeds.plasma} />
+                <FeedPill label="Seismic" status={C.feeds.seismic} />
+                <FeedPill label="Schumann" status={C.feeds.schumann} />
+              </div>
+              <p className="rounded-md border border-border bg-secondary/40 p-2.5 leading-relaxed text-muted-foreground">
+                {plainContinuumNote(C)}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                <FeedPill label="NOAA Kp" status={C.feeds.kp} />
+                <FeedPill label="Solar wind" status={C.feeds.plasma} />
+                <FeedPill label="Seismic" status={C.feeds.seismic} />
+                <FeedPill label="Schumann" status={C.feeds.schumann} />
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  ψₛ={C.psiS.toFixed(2)} · {C.psiSource}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Mini label="EII" value={C.eii.toFixed(3)} hint="with Schumann" warn={C.eii >= 0.6} />
+                <Mini label="EII base" value={C.eiiBase.toFixed(3)} hint="pre-ELF" />
+                <Mini label="RPAM" value={C.rpam} hint="phase" warn={C.rpam !== "MONITORING"} />
+                <Mini label="CCI" value={C.cci.toFixed(3)} hint={C.cciLabel} />
+              </div>
               <div className="grid grid-cols-2 gap-2 border-t border-border pt-2">
                 <Row k="Md max / mean" v={`${formatMag(C.mdMax)} / ${formatMag(C.mdMean)}`} />
                 <Row
@@ -466,7 +571,7 @@ export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
         </CardContent>
       </Card>
 
-      {/* Advanced-only stack */}
+      {/* Technical-only stack */}
       {!focusMode && (
         <>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
@@ -795,13 +900,97 @@ export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
 
       {focusMode && (
         <p className="text-center text-[11px] text-muted-foreground">
-          Focus mode on —{" "}
+          Simple view —{" "}
           <button type="button" className="text-accent hover:underline" onClick={toggleFocus}>
-            open Advanced
+            open Technical
           </button>{" "}
-          for ETAS, harmonic, fracture tables, LAIC.
+          for SUPT codes, ETAS, harmonic tables, LAIC.
         </p>
       )}
+    </div>
+  );
+}
+
+function plainEtas(v: string): string {
+  if (v === "survives") return "Still unusual";
+  if (v === "vanishes") return "Mostly clustering";
+  if (v === "both-null") return "No strong order";
+  if (v === "insufficient") return "Too few events";
+  return v;
+}
+
+function plainEnergy(eii: number, rpam: string): string {
+  if (rpam === "ACTIVE" || eii >= 0.85) return "High";
+  if (rpam === "ELEVATED" || eii >= 0.6) return "Elevated";
+  if (eii >= 0.35) return "Moderate";
+  return "Baseline";
+}
+
+function plainSpaceWeather(kp: number, sr: number): string {
+  const geo = kp >= 5 ? "Stormy" : kp >= 4 ? "Unsettled" : kp >= 3 ? "Active" : "Quiet";
+  if (sr >= 70) return `${geo} · SR high`;
+  if (sr >= 40) return `${geo} · SR active`;
+  return geo;
+}
+
+function geomagPlain(kp: number): string {
+  if (kp >= 5) return "Storm level";
+  if (kp >= 4) return "Unsettled";
+  if (kp >= 3) return "Active";
+  return "Quiet";
+}
+
+function plainDetectiveBlurb(report: SwarmDetectiveReport): string {
+  const top = report.fabric.stressNodes[0];
+  const planes = report.fabric.planes.length;
+  const bits: string[] = [];
+  if (top) {
+    bits.push(
+      `Map ranks stress zone #1 at about ${top.depthKm.toFixed(1)} km (score ${top.score}/100).`,
+    );
+  }
+  if (planes > 0) {
+    bits.push(`${planes} candidate fracture line${planes === 1 ? "" : "s"} fitted from hypocentres.`);
+  } else {
+    bits.push("No strong fracture plane in this sample.");
+  }
+  bits.push("Scroll the map for nodes · findings card lists what the detective flags.");
+  return bits.join(" ");
+}
+
+function plainContinuumNote(C: ContinuumReport): string {
+  const load = plainEnergy(C.eii, C.rpam);
+  const shallow = Math.round(C.shallowRatio * 100);
+  return (
+    `Energy load is ${load.toLowerCase()} for this window` +
+    ` (${shallow}% of events under 2.5 km` +
+    (C.mdMax > 0 ? `, largest M${formatMag(C.mdMax)}` : "") +
+    `). Geomagnetic Kp ${C.kp.toFixed(1)} · Schumann ${C.schumannIndex || "n/a"}. ` +
+    `These are co-registered observations — not a prediction of the next quake.`
+  );
+}
+
+function PlainStat({
+  label,
+  value,
+  hint,
+  warn,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  warn?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border px-2.5 py-2",
+        warn ? "border-warn/40 bg-warn/5" : "border-border bg-card",
+      )}
+    >
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-sm font-semibold leading-snug text-foreground">{value}</div>
+      {hint && <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</div>}
     </div>
   );
 }
