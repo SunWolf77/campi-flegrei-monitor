@@ -188,10 +188,11 @@ export function DepthProfile({ events, node, selectedId, onSelect }: Props) {
         <CardHeader>
           <CardTitle>Depth distribution</CardTitle>
           <CardDescription>
-            Event count by depth bin (0.5 km). Warm bars = higher mean magnitude.
+            Event count by depth bin (0.5 km). Bar colour = mean magnitude in that bin.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
+          <MagColorLegend />
           <div className="h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={hist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -235,6 +236,39 @@ export function DepthProfile({ events, node, selectedId, onSelect }: Props) {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** Matches magColor() thresholds — cool micro → warm critical. */
+const MAG_LEGEND: { label: string; mag: number }[] = [
+  { label: "<1.5", mag: 1.0 },
+  { label: "1.5+", mag: 1.5 },
+  { label: "2.5+", mag: 2.5 },
+  { label: "3.5+", mag: 3.5 },
+  { label: "4.5+", mag: 4.5 },
+];
+
+function MagColorLegend() {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground"
+      aria-label="Mean magnitude colour scale"
+    >
+      <span className="shrink-0 font-medium text-foreground/80">Mean M</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {MAG_LEGEND.map((s) => (
+          <span key={s.label} className="inline-flex items-center gap-1">
+            <span
+              className="inline-block size-2.5 shrink-0 rounded-sm ring-1 ring-border/60"
+              style={{ background: magColor(s.mag) }}
+              aria-hidden
+            />
+            <span className="font-mono">{s.label}</span>
+          </span>
+        ))}
+      </div>
+      <span className="text-[9px] opacity-70">cool → warm</span>
     </div>
   );
 }
