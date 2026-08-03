@@ -9,7 +9,6 @@ import {
   emptySchumann,
   schumannTone,
   RESONANCEONE_HOME,
-  TOMSK_HOME,
 } from "@/lib/supt/schumann";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,16 +115,7 @@ export function SchumannPanel({ className }: { className?: string }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            ResonanceOne (use this link) ↗
-          </a>
-          <a
-            className="text-muted-foreground hover:underline"
-            href={TOMSK_HOME}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="May fail if your DNS cannot resolve sosrff.tsu.ru"
-          >
-            SOSRFF origin (often DNS-blocked) ↗
+            ResonanceOne ↗
           </a>
           {snap.updatedAt && (
             <span className="font-mono text-muted-foreground">

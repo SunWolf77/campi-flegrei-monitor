@@ -68,29 +68,8 @@ export function observationLinks(nodeId: FocusNodeId): ObservationLink[] {
       {
         id: "resonanceone",
         title: "ResonanceOne SR index",
-        subtitle: "Primary numeric feed (Tomsk-attributed) — use when tsu.ru DNS fails",
+        subtitle: "Live Tomsk-attributed Schumann activity index",
         href: "https://resonanceone.app/schumann-resonance-today",
-        group: "resonance",
-      },
-      {
-        id: "tomsk-proxy-amp",
-        title: "Tomsk amplitude (app proxy)",
-        subtitle: "Same-origin /api/tomsk — bypasses browser DNS to .ru",
-        href: "/api/tomsk?file=sra.jpg",
-        group: "resonance",
-      },
-      {
-        id: "tomsk-proxy-spec",
-        title: "Tomsk spectrogram (app proxy)",
-        subtitle: "fc_fsr1 via /api/tomsk proxy",
-        href: "/api/tomsk?file=fc_fsr1.jpg",
-        group: "resonance",
-      },
-      {
-        id: "tomsk-origin",
-        title: "SOSRFF Tomsk origin",
-        subtitle: "Direct tsu.ru — often DNS-blocked outside RU",
-        href: "https://sosrff.tsu.ru/",
         group: "resonance",
       },
     ];
@@ -157,15 +136,8 @@ export function observationLinks(nodeId: FocusNodeId): ObservationLink[] {
     {
       id: "resonanceone",
       title: "ResonanceOne SR index",
-      subtitle: "Primary when Tomsk DNS fails",
+      subtitle: "Live Tomsk-attributed Schumann activity index",
       href: "https://resonanceone.app/schumann-resonance-today",
-      group: "resonance",
-    },
-    {
-      id: "tomsk-proxy-amp",
-      title: "Tomsk amplitude (app proxy)",
-      subtitle: "/api/tomsk?file=sra.jpg",
-      href: "/api/tomsk?file=sra.jpg",
       group: "resonance",
     },
   ];
