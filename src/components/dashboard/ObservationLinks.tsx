@@ -33,7 +33,7 @@ export function ObservationLinks({ nodeId, className }: Props) {
   );
 
   return (
-    <Card className={cn(className)}>
+    <Card className={cn("obs-links", className)}>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">Observation links</CardTitle>
         <CardDescription>
@@ -51,7 +51,7 @@ export function ObservationLinks({ nodeId, className }: Props) {
                 <Icon className="size-3" />
                 {GROUP_LABEL[g]}
               </div>
-              <div className="grid gap-1.5 sm:grid-cols-2">
+              <div className="obs-links-grid grid gap-1.5">
                 {items.map((link) => (
                   <LinkChip key={link.id} link={link} />
                 ))}

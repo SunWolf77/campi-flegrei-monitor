@@ -3,11 +3,11 @@
 ## Status (server)
 
 | Check | Expected | Live |
-|---|---|---|
+| --- | --- | --- |
 | `twitter:card` | `summary_large_image` | SSR in `__root.tsx` |
 | `twitter:image` / `og:image` | Absolute `https://…/og-card-v2.png?v=…` | `src/lib/seo.ts` |
-| Image size | 1200×630 PNG, < 5 MB | `public/og-card-v2.png` |
-| Twitterbot fetch | 200 HTML + 200 PNG | curl `-A Twitterbot/1.0` |
+| Image size | 1200×630 PNG, under 5 MB | `public/og-card-v2.png` |
+| Twitterbot fetch | 200 HTML + 200 PNG | `curl -A Twitterbot/1.0` |
 
 There is **no public API** to flush X card cache. Redeploy alone does **not** refresh a URL X already crawled.
 
@@ -41,7 +41,7 @@ Image becomes `…/og-card-v2.png?v=NEW` — X has no prior cache for that image
 
 ### C. Card Validator (if available)
 
-https://cards-dev.twitter.com/validator — paste URL → Preview. Often login-walled; not required if A works.
+[cards-dev.twitter.com/validator](https://cards-dev.twitter.com/validator) — paste URL → Preview. Often login-walled; not required if A works.
 
 ### D. Wait
 

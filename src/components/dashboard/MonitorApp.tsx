@@ -59,7 +59,7 @@ import {
   setHeaderCollapsedPref,
   type QuietSource,
 } from "@/lib/ui/prefs";
-import { preferCollapsedChrome } from "@/lib/ui/breakpoints";
+import { mapFillHeightPx, preferCollapsedChrome } from "@/lib/ui/breakpoints";
 import { useViewport } from "@/lib/ui/useViewport";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn, formatDateTime, formatMag, formatRelativeTime, magValue } from "@/lib/utils";
@@ -297,10 +297,11 @@ export function MonitorApp({ initial }: Props) {
     return () => ro.disconnect();
   }, [headerCollapsed, filtersOpen, quiet]);
 
-  // Map fill: visualViewport on mobile (browser chrome), else layout height
-  const mapHeightPx = Math.max(
-    280,
-    Math.floor(vp.vvHeight - chromeH - (tab === "map" ? 44 : 0) - 8),
+  // Map fill from Visual Viewport height − measured header − tabs
+  const mapHeightPx = mapFillHeightPx(
+    vp,
+    chromeH,
+    tab === "map" ? 40 : 0,
   );
 
   return (
@@ -669,7 +670,7 @@ export function MonitorApp({ initial }: Props) {
         </div>
 
         {tab === "map" && (
-          <div className="flex flex-col gap-2">
+          <div className="map-shell @container/map flex flex-col gap-2">
             <Card className="overflow-hidden border-0 shadow-none sm:border sm:shadow-sm">
               <CardHeader className="flex-row items-center justify-between space-y-0 px-1 py-1 sm:px-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -681,7 +682,7 @@ export function MonitorApp({ initial }: Props) {
                       Peak M{formatMag(largest.magnitude)} · {formatRelativeTime(largest.time)}
                     </span>
                   )}
-                  <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
+                  <span className="map-shell-meta-extra hidden font-mono text-[10px] text-muted-foreground sm:inline">
                     {swarm.rate1h}/{swarm.rate6h}/6h · z̄ {events.length ? swarm.meanDepthKm.toFixed(1) : "—"} km
                   </span>
                 </div>

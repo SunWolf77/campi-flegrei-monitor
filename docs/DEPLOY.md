@@ -38,7 +38,7 @@ SITE_URL=https://campi-flegrei-monitor.vercel.app
 ### Optional — Better Auth / Postgres (only if you enable login)
 
 | Variable | Required? | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `VITE_AUTH_ENABLED` | optional | Default off for pure monitor |
 | `BETTER_AUTH_SECRET` | if auth on | Long random secret |
 | `BETTER_AUTH_URL` | if auth on | Production URL |
@@ -50,8 +50,9 @@ Do **not** set `DATABASE_URL` unless you intentionally enable auth.
 ## 4. After first deploy
 
 1. Open production URL — confirm map loads CF events (GOSSIP)
-2. Pulse strip shows EII / RPAM / SR
-3. Theme toggle + Quiet mode persist in browser localStorage
+2. Header pulse shows EII / RPAM / SR
+3. Theme toggle + Quiet mode persist in browser `localStorage`
+4. Collapsible header chevron works; map fills remaining visual viewport
 
 ## 5. Link to Sun-Earth-Sentinel
 
@@ -60,29 +61,31 @@ This app is SES focus node **#2** (Campi Flegrei). Tonga–Kermadec is node **#1
 ### Handoff contract
 
 | Direction | URL |
-|---|---|
+| --- | --- |
 | Sentinel → this board | `https://campi-flegrei-monitor.vercel.app/?from=ses&sesNode=mediterranean` |
 | This board → Sentinel | `https://sun-earth-sentinel.vercel.app/?tab=live&node=mediterranean` |
 | Aliases for `sesNode` | `mediterranean`, `campi-flegrei`, `campi`, `cf` |
-| Companion TK board | `?from=ses&sesNode=tonga` → Tonga node inside this UI, or open `tonga-kermadec-monitor.vercel.app` |
+| Companion TK board | `?from=ses&sesNode=tonga` → Tonga node inside this UI, or open companion board URL |
 
-UI chrome: sticky **Open in Sentinel** bar + companion board link.
+UI: compact **SES** control in the sticky header (when chrome expanded / Quiet off). Companion board link shows on large desktops.
 
 ## 6. X / Twitter share card
 
 X needs **Open Graph + Twitter Card** tags with an **absolute HTTPS image**.
 
 | Tag | Value |
-|---|---|
+| --- | --- |
 | `twitter:card` | `summary_large_image` |
-| `og:image` / `twitter:image` | `https://campi-flegrei-monitor.vercel.app/og.png` |
-| Size | **1200×630** PNG in `/public/og.png` |
+| `og:image` / `twitter:image` | `https://campi-flegrei-monitor.vercel.app/og-card-v2.png?v=…` |
+| Size | **1200×630** PNG in `/public/og-card-v2.png` |
+
+See **[X-CARD.md](./X-CARD.md)** for cache-bust steps.
 
 After deploy:
 
-1. Confirm image: open `/og.png` in browser
+1. Confirm image: open `/og-card-v2.png` in browser
 2. Confirm HTML source contains `twitter:card` and `og:image`
-3. **Bust X cache** — cards are cached hard. Re-share with `?v=2` once, or wait; Card Validator may be restricted on free accounts
+3. **Bust X cache** — re-share with `?card=…` once, or wait
 
 Optional env for custom domain (rebuild after change):
 
