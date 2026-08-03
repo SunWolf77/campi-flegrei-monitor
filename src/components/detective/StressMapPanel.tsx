@@ -27,7 +27,8 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
   const [schumann, setSchumann] = useState<SchumannSnapshot | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [fs, setFs] = useState(false);
-  const [briefOpen, setBriefOpen] = useState(true);
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [nodeOpen, setNodeOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +58,7 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
   const selected: StressNode | null =
     report.fabric.stressNodes.find((n) => n.id === selectedNodeId) ?? null;
 
-  // Auto-select #1 on first fabric load so the card isn't empty
+  // Prefer #1 selected quietly — card stays collapsed until user opens it
   useEffect(() => {
     if (!selectedNodeId && report.fabric.stressNodes[0]) {
       setSelectedNodeId(report.fabric.stressNodes[0].id);
@@ -89,10 +90,10 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
           <button
             type="button"
             onClick={() => setBriefOpen((v) => !v)}
-            className="ml-auto inline-flex items-center gap-1 text-[10px] text-accent hover:underline"
+            className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-accent"
           >
             <Info className="size-3" />
-            {briefOpen ? "Hide" : "Show"} reading
+            {briefOpen ? "Hide reading" : "Reading"}
           </button>
         </div>
       )}
@@ -114,9 +115,17 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
       {!fs && selected && (
         <SelectedNodeCard
           sn={selected}
-          onClear={() => setSelectedNodeId(null)}
+          open={nodeOpen}
+          onToggle={() => setNodeOpen((v) => !v)}
+          onClear={() => {
+            setSelectedNodeId(null);
+            setNodeOpen(false);
+          }}
           peers={report.fabric.stressNodes}
-          onPick={setSelectedNodeId}
+          onPick={(id) => {
+            setSelectedNodeId(id);
+            setNodeOpen(true);
+          }}
         />
       )}
 
@@ -133,7 +142,10 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
           migration={report.fabric.migration}
           stressField={report.fabric.stressField}
           selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
+          onSelectNode={(id) => {
+            setSelectedNodeId(id);
+            if (id) setNodeOpen(true);
+          }}
           height={height}
           onFullscreenChange={setFs}
         />
@@ -144,11 +156,15 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
 
 function SelectedNodeCard({
   sn,
+  open,
+  onToggle,
   onClear,
   peers,
   onPick,
 }: {
   sn: StressNode;
+  open: boolean;
+  onToggle: () => void;
   onClear: () => void;
   peers: StressNode[];
   onPick: (id: string) => void;
@@ -161,69 +177,86 @@ function SelectedNodeCard({
       : "No close fracture plane in fabric";
 
   return (
-    <div className="rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[11px]">
-      <div className="flex flex-wrap items-start gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-foreground bg-[#ffb300] font-mono text-[11px] font-bold text-black">
+    <div className="rounded-lg border border-border bg-card">
+      {/* Collapsed strip — always visible, one line */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] hover:bg-secondary/40"
+        aria-expanded={open}
+      >
+        <span className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-foreground bg-[#ffb300] font-mono text-[10px] font-bold text-black">
           {sn.rank}
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-foreground">
-              Stress node #{sn.rank}
-            </span>
-            <Badge
-              variant={
-                sn.score >= 75 ? "critical" : sn.score >= 55 ? "warn" : "outline"
-              }
-              className="h-5 text-[10px]"
-            >
-              {priority} · {sn.score}/100
-            </Badge>
-            <button
-              type="button"
-              onClick={onClear}
-              className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
-            >
-              Clear
-            </button>
-          </div>
-          <p className="mt-1 leading-relaxed text-foreground/90">{sn.interpretation}</p>
-          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10px] sm:grid-cols-4">
-            <Stat k="Depth" v={`${sn.depthKm.toFixed(2)} km`} />
-            <Stat k="Events" v={String(sn.eventCount)} />
-            <Stat k="Last 6h" v={String(sn.recentCount6h)} />
-            <Stat k="Max M" v={`M${sn.maxMag.toFixed(1)}`} />
-            <Stat k="Mean M" v={sn.meanMag.toFixed(2)} />
-            <Stat k="Energy dens." v={sn.energyDensity.toFixed(2)} />
-            <Stat k="Shallowness" v={`${(sn.shallowness * 100).toFixed(0)}%`} />
-            <Stat
-              k="Local b"
-              v={sn.localBValue != null ? sn.localBValue.toFixed(2) : "—"}
-            />
-          </div>
-          <p className="mt-1.5 text-[10px] text-muted-foreground">
-            {near} · {sn.location.lat.toFixed(4)}N {sn.location.lon.toFixed(4)}E · click map
-            badge or rank below
-          </p>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {peers.slice(0, 8).map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onPick(p.id)}
-                className={cn(
-                  "min-h-7 min-w-7 rounded-full border font-mono text-[10px] font-bold",
-                  p.id === sn.id
-                    ? "border-foreground bg-[#ffb300] text-black"
-                    : "border-border bg-card text-muted-foreground hover:border-accent",
-                )}
-              >
-                {p.rank}
-              </button>
-            ))}
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+          Node #{sn.rank}
+          <span className="ml-1.5 font-mono font-normal text-muted-foreground">
+            {sn.score}/100 · {sn.depthKm.toFixed(1)} km · M{sn.maxMag.toFixed(1)} · n=
+            {sn.eventCount}
+          </span>
+        </span>
+        <Badge
+          variant={
+            sn.score >= 75 ? "critical" : sn.score >= 55 ? "warn" : "outline"
+          }
+          className="h-5 shrink-0 text-[9px]"
+        >
+          {priority}
+        </Badge>
+        <span className="shrink-0 text-[10px] text-muted-foreground">
+          {open ? "Less" : "Details"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-border px-3 py-2 text-[11px]">
+          <div className="flex flex-wrap items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="leading-relaxed text-foreground/90">{sn.interpretation}</p>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10px] sm:grid-cols-4">
+                <Stat k="Depth" v={`${sn.depthKm.toFixed(2)} km`} />
+                <Stat k="Events" v={String(sn.eventCount)} />
+                <Stat k="Last 6h" v={String(sn.recentCount6h)} />
+                <Stat k="Max M" v={`M${sn.maxMag.toFixed(1)}`} />
+                <Stat k="Mean M" v={sn.meanMag.toFixed(2)} />
+                <Stat k="Energy dens." v={sn.energyDensity.toFixed(2)} />
+                <Stat k="Shallowness" v={`${(sn.shallowness * 100).toFixed(0)}%`} />
+                <Stat
+                  k="Local b"
+                  v={sn.localBValue != null ? sn.localBValue.toFixed(2) : "—"}
+                />
+              </div>
+              <p className="mt-1.5 text-[10px] text-muted-foreground">
+                {near} · {sn.location.lat.toFixed(4)}N {sn.location.lon.toFixed(4)}E
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                {peers.slice(0, 8).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => onPick(p.id)}
+                    className={cn(
+                      "min-h-7 min-w-7 rounded-full border font-mono text-[10px] font-bold",
+                      p.id === sn.id
+                        ? "border-foreground bg-[#ffb300] text-black"
+                        : "border-border bg-card text-muted-foreground hover:border-accent",
+                    )}
+                  >
+                    {p.rank}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={onClear}
+                  className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
