@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Expand, HelpCircle, Home, Minimize2, X } from "lucide-react";
 import type { FocusNode, QuakeEvent } from "@/lib/seismic/types";
 import type { FracturePlane, StressNode, Lineament, MigrationStep } from "@/lib/seismic/supt";
@@ -20,10 +20,10 @@ export const SUPT_LAYER_COLORS = {
   /** Migration — teal */
   migration: "#00838f",
   migrationEnd: "#26c6da",
-  /** Stress density field — soft coral, low opacity */
-  fieldHot: "#e64a19",
-  fieldMid: "#ff8a65",
-  fieldCool: "#ffccbc",
+  /** Stress density field — violet haze (≠ amber nodes, ≠ magenta lines) */
+  fieldHot: "#7e57c2",
+  fieldMid: "#b39ddb",
+  fieldCool: "#d1c4e9",
   /** Principal axes */
   sigmaParallel: "#212121",
   sigmaNormal: "#1565c0",
@@ -72,6 +72,20 @@ export function SuptMap({
   const drawRef = useRef<() => Promise<void>>(async () => {});
   const [fullscreen, setFullscreen] = useState(defaultFullscreen);
   const [helpOpen, setHelpOpen] = useState(false);
+  /** Toggle layers — shape + colour in legend for clarity */
+  const [layers, setLayers] = useState({
+    field: true,
+    events: true,
+    lineaments: true,
+    fractures: true,
+    axes: true,
+    migration: true,
+    nodes: true,
+  });
+  const layersRefState = useRef(layers);
+  layersRefState.current = layers;
+  const toggleLayer = (k: keyof typeof layers) =>
+    setLayers((prev) => ({ ...prev, [k]: !prev[k] }));
 
   const tRange = useMemo(() => {
     if (!events.length) {
@@ -187,19 +201,23 @@ export function SuptMap({
       group.clearLayers();
       const C = SUPT_LAYER_COLORS;
 
-      // Stress density field (soft coral — not same as nodes)
-      for (const cell of stressField) {
-        if (cell.intensity < 0.12) continue;
-        L.circleMarker([cell.lat, cell.lon], {
-          radius: 6 + cell.intensity * 14,
-          stroke: false,
-          fillColor: fieldColor(cell.intensity),
-          fillOpacity: 0.1 + cell.intensity * 0.28,
-        }).addTo(group);
+      const vis = layersRefState.current;
+
+      // Stress density field (soft purple haze — not amber, not magenta)
+      if (vis.field) {
+        for (const cell of stressField) {
+          if (cell.intensity < 0.12) continue;
+          L.circleMarker([cell.lat, cell.lon], {
+            radius: 7 + cell.intensity * 16,
+            stroke: false,
+            fillColor: fieldColor(cell.intensity),
+            fillOpacity: 0.08 + cell.intensity * 0.22,
+          }).addTo(group);
+        }
       }
 
       // Lineaments — indigo dashed (fabric grain)
-      for (const lin of lineaments) {
+      if (vis.lineaments) for (const lin of lineaments) {
         L.polyline(
           [
             [lin.endpoints[0].lat, lin.endpoints[0].lon],
@@ -218,8 +236,21 @@ export function SuptMap({
           .addTo(group);
       }
 
-      // Fracture traces — MAGENTA solid (distinct from amber nodes)
-      for (const pl of planes) {
+      // Fracture traces — MAGENTA solid + white halo (line ≠ circle)
+      if (vis.fractures) for (const pl of planes) {
+        // white underlay for contrast on basemap
+        L.polyline(
+          [
+            [pl.trace[0].lat, pl.trace[0].lon],
+            [pl.trace[1].lat, pl.trace[1].lon],
+          ],
+          {
+            color: "#ffffff",
+            weight: 6 + pl.confidence * 2.5,
+            opacity: 0.85,
+            lineCap: "round",
+          },
+        ).addTo(group);
         L.polyline(
           [
             [pl.trace[0].lat, pl.trace[0].lon],
@@ -228,7 +259,7 @@ export function SuptMap({
           {
             color: C.fracture,
             weight: 3 + pl.confidence * 2.5,
-            opacity: 0.88,
+            opacity: 0.95,
             lineCap: "round",
           },
         )
@@ -251,12 +282,12 @@ export function SuptMap({
           .bindTooltip(`Plane centroid · strike ${pl.strikeDeg.toFixed(0)}°`)
           .addTo(group);
 
-        // Principal-axis proxy: strike-parallel (σ∥) and map-projected normal (σ⊥)
-        drawStressAxes(L, group, pl, C);
+        // Principal-axis proxy (optional)
+        if (vis.axes) drawStressAxes(L, group, pl, C);
       }
 
-      // Migration — teal
-      if (migration.length >= 2) {
+      // Migration — teal arrows-ish path
+      if (vis.migration && migration.length >= 2) {
         const latlngs = migration.map(
           (m) => [m.centroid.lat, m.centroid.lon] as [number, number],
         );
@@ -278,7 +309,8 @@ export function SuptMap({
         });
       }
 
-      // Events (subtle)
+      // Events (subtle grey-blue dots — not SUPT targets)
+      if (vis.events) {
       const sorted = [...events].sort(
         (a, b) => magValue(a.magnitude) - magValue(b.magnitude),
       );
@@ -289,24 +321,37 @@ export function SuptMap({
           color: "rgba(0,0,0,0.2)",
           weight: 0.5,
           fillColor: timeAgeColor(age),
-          fillOpacity: 0.4,
+          fillOpacity: 0.35,
         }).addTo(group);
       }
+      }
 
-      // Stress nodes — AMBER (not magenta) with dark ring + rank
-      stressNodes.forEach((sn) => {
+      // Stress nodes — numbered AMBER BADGES (shape ≠ fracture lines)
+      if (vis.nodes) stressNodes.forEach((sn) => {
         const sel = sn.id === selectedNodeId;
-        const marker = L.circleMarker([sn.location.lat, sn.location.lon], {
-          radius: sel ? 13 : 9 + sn.score / 28,
-          color: sel ? C.nodeSel : C.nodeStroke,
-          weight: sel ? 3.5 : 2.5,
-          fillColor: sn.score >= 70 ? "#ff8f00" : sn.score >= 55 ? C.nodeFill : "#ffe082",
-          fillOpacity: 0.95,
+        const size = sel ? 28 : 22;
+        const fill = sn.score >= 70 ? "#ff8f00" : sn.score >= 55 ? C.nodeFill : "#ffe082";
+        const ring = sel ? C.nodeSel : "#1a1200";
+        const icon = L.divIcon({
+          className: "supt-node-badge",
+          html: `<div style="
+            width:${size}px;height:${size}px;border-radius:50%;
+            background:${fill};border:2.5px solid ${ring};
+            box-shadow:0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,.35);
+            display:flex;align-items:center;justify-content:center;
+            font:800 11px/1 ui-monospace,monospace;color:#1a1200;
+          ">${sn.rank}</div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        });
+        const marker = L.marker([sn.location.lat, sn.location.lon], {
+          icon,
+          zIndexOffset: 800,
         });
         marker.bindTooltip(
-          `<strong style="color:#e65100">Stress node #${sn.rank}</strong> · score ${sn.score}<br/>` +
+          `<strong style="color:#e65100">● Stress node #${sn.rank}</strong> · score ${sn.score}<br/>` +
             `${sn.depthKm.toFixed(1)} km · n=${sn.eventCount} · max M${sn.maxMag.toFixed(1)}<br/>` +
-            `<span style="opacity:.8">Density / energy / shallowness proxy — not a forecast.</span>`,
+            `<span style="opacity:.8">Ranked density/energy zone — not a forecast.</span>`,
           { direction: "top" },
         );
         marker.on("click", (e) => {
@@ -314,15 +359,6 @@ export function SuptMap({
           onSelectNode?.(sn.id);
         });
         marker.addTo(group);
-
-        L.marker([sn.location.lat, sn.location.lon], {
-          icon: L.divIcon({
-            className: "supt-node-label",
-            html: `<div style="font:700 10px/1 ui-monospace,monospace;color:#1a1200;background:#fff8e1;border-radius:4px;padding:1px 4px;border:1.5px solid #ff8f00;box-shadow:0 1px 2px rgba(0,0,0,.2)">${sn.rank}</div>`,
-            iconSize: [18, 14],
-            iconAnchor: [-6, 20],
-          }),
-        }).addTo(group);
       });
     }
     drawRef.current = draw;
@@ -399,7 +435,7 @@ export function SuptMap({
 
   useEffect(() => {
     void drawRef.current();
-  }, [events, planes, stressNodes, lineaments, migration, stressField, selectedNodeId, tRange]);
+  }, [events, planes, stressNodes, lineaments, migration, stressField, selectedNodeId, tRange, layers]);
 
   const fittedFabric = useRef(false);
   useEffect(() => {
@@ -508,16 +544,59 @@ export function SuptMap({
         </div>
       )}
 
-      {/* Legend — distinct colors */}
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[190px] rounded-md border border-border/80 bg-card/95 px-2 py-1.5 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
-        <div className="mb-1 font-medium text-foreground">SUPT layers</div>
-        <div className="space-y-0.5">
-          <Row color={C.nodeFill} border={C.nodeStroke} label="Stress nodes (amber)" />
-          <Row color={C.fracture} label="Fracture traces (magenta)" />
-          <Row color={C.lineament} label="Lineaments (indigo)" />
-          <Row color={C.migration} label="Migration path (teal)" />
-          <Row color={C.fieldMid} label="Stress field (coral)" />
-          <Row color={C.sigmaNormal} label="σ⊥ normal (blue tick)" />
+      {/* Interactive legend — shape + colour + toggle */}
+      <div className="absolute bottom-3 left-3 z-20 w-[200px] rounded-md border border-border bg-card/98 p-2 text-[10px] shadow-lg backdrop-blur-sm">
+        <div className="mb-1.5 font-semibold text-foreground">Layers · tap to toggle</div>
+        <div className="flex flex-col gap-0.5">
+          <LayerToggle
+            on={layers.nodes}
+            onClick={() => toggleLayer("nodes")}
+            glyph={<GlyphNode />}
+            label="Stress nodes"
+            hint="numbered amber discs"
+          />
+          <LayerToggle
+            on={layers.fractures}
+            onClick={() => toggleLayer("fractures")}
+            glyph={<GlyphLine color={C.fracture} />}
+            label="Fracture planes"
+            hint="magenta lines"
+          />
+          <LayerToggle
+            on={layers.axes}
+            onClick={() => toggleLayer("axes")}
+            glyph={<GlyphAxes />}
+            label="σ axes"
+            hint="black ∥ · blue ⊥"
+          />
+          <LayerToggle
+            on={layers.lineaments}
+            onClick={() => toggleLayer("lineaments")}
+            glyph={<GlyphDash color={C.lineament} />}
+            label="Lineaments"
+            hint="indigo dashed"
+          />
+          <LayerToggle
+            on={layers.migration}
+            onClick={() => toggleLayer("migration")}
+            glyph={<GlyphLine color={C.migration} thick />}
+            label="Migration"
+            hint="teal path"
+          />
+          <LayerToggle
+            on={layers.field}
+            onClick={() => toggleLayer("field")}
+            glyph={<GlyphBlob color={C.fieldMid} />}
+            label="Stress field"
+            hint="violet haze"
+          />
+          <LayerToggle
+            on={layers.events}
+            onClick={() => toggleLayer("events")}
+            glyph={<GlyphDot />}
+            label="Earthquakes"
+            hint="small age dots"
+          />
         </div>
       </div>
 
@@ -526,6 +605,7 @@ export function SuptMap({
           {node.code} · stress & fracture · Esc exit · ? keys
         </div>
       )}
+
 
       {helpOpen && (
         <div className="absolute inset-x-2 bottom-16 z-30 mx-auto max-w-md rounded-lg border border-border bg-card/98 p-3 text-xs shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:right-auto">
@@ -554,8 +634,8 @@ export function SuptMap({
             <dd>This help</dd>
           </dl>
           <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-            Amber = where energy/density piles up. Magenta = PCA fracture geometry. Connecting
-            them is observational co-location — not a forecast of the next break.
+            Amber numbered discs = stress nodes. Magenta lines = fracture planes. Tap legend to
+            isolate layers. Co-location is observational — not a forecast.
           </p>
         </div>
       )}
@@ -563,27 +643,104 @@ export function SuptMap({
   );
 }
 
-function Row({
-  color,
+function LayerToggle({
+  on,
+  onClick,
+  glyph,
   label,
-  border,
+  hint,
 }: {
-  color: string;
+  on: boolean;
+  onClick: () => void;
+  glyph: ReactNode;
   label: string;
-  border?: string;
+  hint: string;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span
-        className="size-2.5 shrink-0 rounded-full"
-        style={{
-          background: color,
-          boxShadow: border ? `inset 0 0 0 1.5px ${border}` : undefined,
-        }}
-      />
-      {label}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-1 py-1 text-left transition-colors",
+        on ? "bg-secondary/60 text-foreground" : "text-muted-foreground opacity-55 line-through",
+      )}
+      title={on ? `Hide ${label}` : `Show ${label}`}
+    >
+      <span className="flex size-5 shrink-0 items-center justify-center">{glyph}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] font-medium leading-tight">{label}</span>
+        <span className="block text-[9px] leading-tight opacity-70">{hint}</span>
+      </span>
+      <span className="font-mono text-[9px] opacity-60">{on ? "on" : "off"}</span>
+    </button>
   );
+}
+
+function GlyphNode() {
+  return (
+    <span
+      className="flex size-4 items-center justify-center rounded-full border-2 border-black bg-[#ffb300] text-[8px] font-bold text-black shadow-[0_0_0_1px_#fff]"
+      aria-hidden
+    >
+      1
+    </span>
+  );
+}
+
+function GlyphLine({ color, thick }: { color: string; thick?: boolean }) {
+  return (
+    <svg width="18" height="10" viewBox="0 0 18 10" aria-hidden>
+      <line
+        x1="1"
+        y1="5"
+        x2="17"
+        y2="5"
+        stroke={color}
+        strokeWidth={thick ? 3 : 2.5}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function GlyphDash({ color }: { color: string }) {
+  return (
+    <svg width="18" height="10" viewBox="0 0 18 10" aria-hidden>
+      <line
+        x1="1"
+        y1="5"
+        x2="17"
+        y2="5"
+        stroke={color}
+        strokeWidth="2"
+        strokeDasharray="3 2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function GlyphAxes() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <line x1="2" y1="8" x2="14" y2="8" stroke="#212121" strokeWidth="2" />
+      <line x1="8" y1="2" x2="8" y2="14" stroke="#1565c0" strokeWidth="2" strokeDasharray="2 1" />
+    </svg>
+  );
+}
+
+function GlyphBlob({ color }: { color: string }) {
+  return (
+    <span
+      className="size-4 rounded-full opacity-80"
+      style={{ background: color }}
+      aria-hidden
+    />
+  );
+}
+
+function GlyphDot() {
+  return <span className="size-2 rounded-full bg-neutral-500" aria-hidden />;
 }
 
 function fieldColor(i: number): string {

@@ -12,19 +12,22 @@
 | `Esc` | Exit fullscreen or close help |
 | `?` | Toggle shortcut help overlay |
 
-Mouse / touch: pan, scroll-zoom, leaflet ± controls (bottom-right).
+Mouse / touch: pan, scroll-zoom, leaflet ± (bottom-right). **Legend (bottom-left): tap any row to show/hide that layer.**
 
-## Colour legend (SUPT layers)
+## How to tell layers apart (shape + colour)
 
-| Layer | Colour | Meaning |
+| Layer | Looks like | Colour |
 | --- | --- | --- |
-| Stress nodes | **Amber** + dark ring | Ranked density / energy / shallowness proxy |
-| Fracture traces | **Magenta** | PCA plane strike traces through hypocentres |
-| Lineaments | **Indigo** dashed | Pairwise geometric grain |
-| Migration | **Teal** | Swarm centroid path over time |
-| Stress field | Soft **coral** | Continuous density heat |
-| σ∥ / σ⊥ | Black / blue ticks | Strike-parallel & map-normal axes (geometric proxy, not CMT) |
+| **Stress nodes** | Numbered **discs** with white halo | Amber / gold |
+| **Fracture planes** | Continuous **thick lines** (white underlay) | Magenta / rose |
+| **σ axes** | Short cross ticks at plane centre | Black ∥ · blue ⊥ |
+| **Lineaments** | **Dashed** thinner lines | Indigo |
+| **Migration** | Solid path + end dots | Teal |
+| **Stress field** | Soft **haze** blobs | Violet (not amber) |
+| **Earthquakes** | Tiny age-coloured dots | Grey → warm |
+
+Tip: turn **off** field + events first, leave **nodes + fractures** on — that is the clean “where energy meets fabric” view.
 
 ## Reading (observational)
 
-Amber **where energy piles up** + magenta **how the cloud is planar** + teal **how the centre moved**. Co-location of amber∩magenta is the main “connect the dots” cue. **Not a forecast.**
+Amber discs = density/energy zones. Magenta lines = PCA fracture geometry. Co-location is the connect-the-dots cue. **Not a forecast.**
