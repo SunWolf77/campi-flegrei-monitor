@@ -64,10 +64,19 @@ This app is SES focus node **#2** (Campi Flegrei). Tonga–Kermadec is node **#1
 | --- | --- |
 | Sentinel → this board | `https://campi-flegrei-monitor.vercel.app/?from=ses&sesNode=mediterranean` |
 | This board → Sentinel | `https://sun-earth-sentinel.vercel.app/?tab=live&node=mediterranean` |
-| Aliases for `sesNode` | `mediterranean`, `campi-flegrei`, `campi`, `cf` |
-| Companion TK board | `?from=ses&sesNode=tonga` → Tonga node inside this UI, or open companion board URL |
+| Aliases for `sesNode` / `node` | `mediterranean`, `campi-flegrei`, `campi`, `cf` |
+| In-app switch CF ↔ TK | Network rail **CF #2 · TK #1** (no page leave) |
+| Companion TK board | `https://tonga-kermadec-monitor.vercel.app/?from=ses&sesNode=tonga` |
 
-UI: compact **SES** control in the sticky header (when chrome expanded / Quiet off). Companion board link shows on large desktops.
+### Catalog feed (SES merge)
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/ses/catalog?window=7d&node=mediterranean` | GeoJSON FeatureCollection · INGV authority · CORS `*` |
+
+SES should **replace** USGS features inside the CF bbox with this feed (never dual-read).
+
+UI: sticky **network rail** (SES · CF · TK) + **← Sentinel** when `?from=ses`. Address bar keeps `?node=` / `?window=` in sync.
 
 ## 6. X / Twitter share card
 

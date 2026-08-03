@@ -79,20 +79,18 @@ function slimSwarm(swarm: SwarmAnalysis): SwarmAnalysis {
   };
 }
 
-export const fetchCatalog = createServerFn({ method: "GET" })
-  .validator(
-    (data: {
-      nodeId?: string;
-      window?: WindowKey;
-      minMagnitude?: number;
-      maxDepthKm?: number;
-      forceProvider?: SeismicProviderId;
-      /** When true, return KPI-only shell (no events) for ultra-light SSR. */
-      metaOnly?: boolean;
-    }) => data ?? {},
-  )
-  .handler(async ({ data }): Promise<CatalogPayload> => {
-    const input = data ?? {};
+export type CatalogQuery = {
+  nodeId?: string;
+  window?: WindowKey;
+  minMagnitude?: number;
+  maxDepthKm?: number;
+  forceProvider?: SeismicProviderId;
+  /** When true, return KPI-only shell (no events) for ultra-light SSR. */
+  metaOnly?: boolean;
+};
+
+/** Core catalog load — used by createServerFn + Nitro SES feed. */
+export async function loadCatalogPayload(input: CatalogQuery = {}): Promise<CatalogPayload> {
     const nodeId = (input.nodeId ?? "campi-flegrei") as FocusNodeId;
     const windowKey = (input.window ?? "7d") as WindowKey;
     const node = getFocusNode(nodeId);
@@ -176,6 +174,12 @@ export const fetchCatalog = createServerFn({ method: "GET" })
         attempted: [],
       };
     }
+}
+
+export const fetchCatalog = createServerFn({ method: "GET" })
+  .validator((data: CatalogQuery) => data ?? {})
+  .handler(async ({ data }): Promise<CatalogPayload> => {
+    return loadCatalogPayload(data ?? {});
   });
 
 export function coerceCatalogPayload(

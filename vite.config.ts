@@ -130,6 +130,111 @@ function tomskProxyPlugin(): Plugin {
  * and returns the 302 / completion HTML. Deployed apps do not use the popup
  * (full-page OAuth redirect), so `apply: "serve"` is enough.
  */
+
+/**
+ * Public SES catalog GeoJSON for Sentinel merge (dev middleware).
+ * Production: server/routes/api/ses/catalog.get.ts
+ */
+function sesCatalogPlugin(): Plugin {
+  return {
+    name: "ses:catalog-feed",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          const rawUrl = req.url ?? "";
+          const pathOnly = rawUrl.split("?", 1)[0] ?? "";
+          if (pathOnly !== "/api/ses/catalog") {
+            next();
+            return;
+          }
+          const method = (req.method ?? "GET").toUpperCase();
+          if (method === "OPTIONS") {
+            res.statusCode = 204;
+            res.setHeader("access-control-allow-origin", "*");
+            res.setHeader("access-control-allow-methods", "GET, OPTIONS");
+            res.end();
+            return;
+          }
+          if (method !== "GET" && method !== "HEAD") {
+            res.statusCode = 405;
+            res.end("Method Not Allowed");
+            return;
+          }
+          const u = new URL(rawUrl, "http://local");
+          const mod = (await server.ssrLoadModule("/src/lib/seismic/server.ts")) as {
+            loadCatalogPayload: (q: Record<string, unknown>) => Promise<{
+              events: unknown[];
+              count: number;
+              authority: string;
+              provider: string;
+              sourceUrl: string;
+            }>;
+          };
+          const bridge = (await server.ssrLoadModule(
+            "/src/lib/seismic/ses-bridge.ts",
+          )) as {
+            toSesEqCollection: (
+              events: unknown[],
+              nodeId: string,
+            ) => Record<string, unknown>;
+          };
+          const handoff = (await server.ssrLoadModule(
+            "/src/lib/seismic/ses-handoff.ts",
+          )) as {
+            focusNodeFromSesParam: (raw: string | null) => string | null;
+            sesDragonId: (id: string) => string;
+          };
+          const nodeParam = u.searchParams.get("node") || u.searchParams.get("sesNode");
+          const windowKey = u.searchParams.get("window") || "7d";
+          const nodeId =
+            handoff.focusNodeFromSesParam(nodeParam) ?? "campi-flegrei";
+          const catalog = await mod.loadCatalogPayload({
+            nodeId,
+            window: windowKey,
+            maxDepthKm: nodeId === "campi-flegrei" ? 8 : undefined,
+          });
+          const collection = bridge.toSesEqCollection(
+            catalog.events as never[],
+            nodeId,
+          );
+          const body = JSON.stringify({
+            ...collection,
+            metadata: {
+              ...(collection.metadata as object),
+              generated: Date.now(),
+              count: catalog.count,
+              title: `SES focus feed · ${handoff.sesDragonId(nodeId)}`,
+              authority: catalog.authority,
+              nodeId,
+              dragonId: handoff.sesDragonId(nodeId),
+              window: windowKey,
+              provider: catalog.provider,
+              sourceUrl: catalog.sourceUrl,
+              board: "campi-flegrei-monitor",
+            },
+          });
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.setHeader("access-control-allow-origin", "*");
+          res.setHeader("cache-control", "public, max-age=60");
+          if (method === "HEAD") {
+            res.end();
+            return;
+          }
+          res.end(body);
+        } catch (err) {
+          console.error("[ses] catalog feed failed:", err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify({ error: "ses catalog failed" }));
+          }
+        }
+      });
+    },
+  };
+}
+
 function authPopupPlugin(): Plugin {
   return {
     name: "app-builder:auth-popup",
@@ -224,6 +329,7 @@ export default defineConfig(({ command }) => ({
   plugins: [
     pgliteBootstrapPlugin(),
     tomskProxyPlugin(),
+    sesCatalogPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),
     tailwindcss(),

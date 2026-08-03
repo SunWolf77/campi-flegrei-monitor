@@ -32,6 +32,7 @@ import { PacificNodePanel } from "@/components/feeds/PacificNodePanel";
 import { EpochLogPanel } from "@/components/feeds/EpochLogPanel";
 import { LaicBrief } from "@/components/feeds/LaicBrief";
 import { EventTable } from "@/components/dashboard/EventTable";
+import { SesNetworkBar } from "@/components/dashboard/SesNetworkBar";
 import { buildContinuumReport } from "@/lib/supt/continuum";
 import { learnFromObservation } from "@/lib/supt/epochLog";
 import { fetchSchumann } from "@/lib/supt/earthFeedsServer";
@@ -46,10 +47,9 @@ import { fetchCatalog, type CatalogPayload, type WindowKey } from "@/lib/seismic
 import { emptyCatalog, normalizeCatalog } from "@/lib/seismic/catalog";
 import { getAuthority } from "@/lib/seismic/authority";
 import {
-  companionBoardLabel,
-  companionBoardUrl,
   parseSesHandoff,
   sentinelFocusUrl,
+  syncBoardLocation,
 } from "@/lib/seismic/ses-handoff";
 import { classifySwarmIntensity } from "@/lib/seismic/intensity";
 import {
@@ -106,7 +106,7 @@ export function MonitorApp({ initial }: Props) {
 
   const [data, setData] = useState<CatalogPayload>(safeInitial);
   const handoff = useMemo(() => parseSesHandoff(), []);
-  const [fromSes] = useState(handoff.fromSes);
+  const [fromSes, setFromSes] = useState(handoff.fromSes);
   const [nodeId, setNodeId] = useState<FocusNodeId>(() => {
     if (typeof window !== "undefined") {
       const n = new URLSearchParams(window.location.search).get("node");
@@ -205,6 +205,19 @@ export function MonitorApp({ initial }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Keep share URL + SES handoff params continuous with active node
+  useEffect(() => {
+    syncBoardLocation({ nodeId, windowKey, fromSes, replace: true });
+  }, [nodeId, windowKey, fromSes]);
+
+  const selectNetworkNode = useCallback((id: FocusNodeId) => {
+    setNodeId(id);
+    if (id === "tonga-kermadec") setMaxDepthKm(null);
+    else if (maxDepthKm == null) setMaxDepthKm(8);
+    setSelectedId(null);
+    setTab("map");
+  }, [maxDepthKm]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -350,13 +363,22 @@ export function MonitorApp({ initial }: Props) {
             </div>
 
             <div className="min-w-0 flex-1 overflow-hidden">
-              <PulseStrip
-                continuum={continuum}
-                intensity={intensity}
-                newSincePoll={newSincePoll}
-                rate6h={swarm.rate6h}
-                className="border-0 bg-transparent px-0 py-0"
-              />
+              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                <SesNetworkBar
+                  nodeId={nodeId}
+                  fromSes={fromSes}
+                  onSelectNode={selectNetworkNode}
+                  onDismissFromSes={() => setFromSes(false)}
+                  className="shrink-0"
+                />
+                <PulseStrip
+                  continuum={continuum}
+                  intensity={intensity}
+                  newSincePoll={newSincePoll}
+                  rate6h={swarm.rate6h}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-0 py-0"
+                />
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-0.5">
@@ -428,9 +450,9 @@ export function MonitorApp({ initial }: Props) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hidden h-8 items-center gap-1 rounded-md border border-accent/35 bg-accent/10 px-2 text-[10px] font-semibold text-accent hover:bg-accent/20 sm:inline-flex"
-                  title="Open in Sun-Earth-Sentinel"
+                  title="Open Sun-Earth-Sentinel live map"
                 >
-                  SES
+                  SES hub
                   <ExternalLink className="size-2.5" />
                 </a>
               )}
@@ -445,11 +467,7 @@ export function MonitorApp({ initial }: Props) {
                   <button
                     key={n.id}
                     type="button"
-                    onClick={() => {
-                      setNodeId(n.id);
-                      if (n.id === "tonga-kermadec") setMaxDepthKm(null);
-                      else if (maxDepthKm == null) setMaxDepthKm(8);
-                    }}
+                    onClick={() => selectNetworkNode(n.id)}
                     className={cn(
                       "min-h-7 rounded px-2 text-[11px] font-medium transition-colors",
                       nodeId === n.id
@@ -510,15 +528,9 @@ export function MonitorApp({ initial }: Props) {
               </button>
 
               {!quiet && vp.isDesktop && (
-                <a
-                  href={companionBoardUrl(nodeId)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-auto hidden min-h-7 items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground lg:inline-flex"
-                >
-                  {companionBoardLabel(nodeId)}
-                  <ExternalLink className="size-2.5 opacity-70" />
-                </a>
+                <span className="ml-auto hidden text-[10px] text-muted-foreground lg:inline">
+                  SES network · #1 TK · #2 CF
+                </span>
               )}
             </div>
           )}
@@ -530,11 +542,7 @@ export function MonitorApp({ initial }: Props) {
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => {
-                    setNodeId(n.id);
-                    if (n.id === "tonga-kermadec") setMaxDepthKm(null);
-                    else if (maxDepthKm == null) setMaxDepthKm(8);
-                  }}
+                  onClick={() => selectNetworkNode(n.id)}
                   className={cn(
                     "min-h-6 shrink-0 rounded px-1.5 font-mono text-[10px]",
                     nodeId === n.id
