@@ -7,22 +7,58 @@
  *   https://sosrff.tsu.ru/new/sra.jpg  (Schumann amplitude)
  *   https://sosrff.tsu.ru/new/fc_fsr1.jpg … fc_fsr4.jpg
  *
- * Used by Continuum / SUPT-Dashboard (was OCR on sch.png).
+ * Client DNS to sosrff.tsu.ru often fails (esp. AU ISPs / .ru blocks).
+ * Charts are served via same-origin proxy: /api/tomsk?file=…
  */
 
 export const SCHUMANN_API_URL = "https://resonanceone.app/api/now";
 export const TOMSK_BASE = "https://sosrff.tsu.ru/new";
+export const TOMSK_HOME = "https://sosrff.tsu.ru/";
+export const RESONANCEONE_HOME =
+  "https://resonanceone.app/schumann-resonance-today";
 
-/** Live chart assets still served from Tomsk SOSRFF (2026). */
+/** Allowlisted SOSRFF chart filenames (proxy + UI). */
+export const TOMSK_FILES = [
+  "sra.jpg",
+  "fc_fsr1.jpg",
+  "fc_fsr2.jpg",
+  "srq.jpg",
+  "srf.jpg",
+  "mag.jpg",
+] as const;
+
+export type TomskFile = (typeof TOMSK_FILES)[number];
+
+export function isAllowedTomskFile(file: string): file is TomskFile {
+  return (TOMSK_FILES as readonly string[]).includes(file);
+}
+
+export function tomskUpstreamUrl(file: TomskFile | string): string {
+  const name = file.replace(/[^a-z0-9_.-]/gi, "");
+  return `${TOMSK_BASE}/${name}`;
+}
+
+/** Same-origin proxy URL — works when browser cannot resolve sosrff.tsu.ru */
+export function tomskProxyUrl(file: TomskFile | string): string {
+  return `/api/tomsk?file=${encodeURIComponent(file)}`;
+}
+
+/** Live chart assets — proxied for client display. */
 export const TOMSK_CHARTS = {
-  amplitude: `${TOMSK_BASE}/sra.jpg`,
-  spectrogram1: `${TOMSK_BASE}/fc_fsr1.jpg`,
-  spectrogram2: `${TOMSK_BASE}/fc_fsr2.jpg`,
-  quality: `${TOMSK_BASE}/srq.jpg`,
-  frequency: `${TOMSK_BASE}/srf.jpg`,
-  magnetic: `${TOMSK_BASE}/mag.jpg`,
-  home: "https://sosrff.tsu.ru/",
+  amplitude: tomskProxyUrl("sra.jpg"),
+  spectrogram1: tomskProxyUrl("fc_fsr1.jpg"),
+  spectrogram2: tomskProxyUrl("fc_fsr2.jpg"),
+  quality: tomskProxyUrl("srq.jpg"),
+  frequency: tomskProxyUrl("srf.jpg"),
+  magnetic: tomskProxyUrl("mag.jpg"),
+  /** Origin (may fail DNS in browser) */
+  amplitudeOrigin: tomskUpstreamUrl("sra.jpg"),
+  spectrogram1Origin: tomskUpstreamUrl("fc_fsr1.jpg"),
+  home: TOMSK_HOME,
+  resonanceOne: RESONANCEONE_HOME,
 } as const;
+
+export type TomskOriginStatus = "ok" | "down" | "unknown";
 
 export type SchumannSnapshot = {
   activityIndex: number;
@@ -40,6 +76,9 @@ export type SchumannSnapshot = {
   schumannFactor: number;
   charts: typeof TOMSK_CHARTS;
   sourceUrl: string;
+  /** Server-side probe of sosrff.tsu.ru (not browser DNS) */
+  tomskOrigin: TomskOriginStatus;
+  tomskNote?: string;
   error?: string;
 };
 
@@ -59,18 +98,23 @@ export function emptySchumann(error?: string): SchumannSnapshot {
     schumannFactor: 1,
     charts: TOMSK_CHARTS,
     sourceUrl: SCHUMANN_API_URL,
+    tomskOrigin: "unknown",
+    tomskNote:
+      "Charts load via app proxy. Direct sosrff.tsu.ru links may fail DNS on some networks.",
     error,
   };
 }
 
-export function parseSchumannJson(data: unknown): SchumannSnapshot {
+export function parseSchumannJson(
+  data: unknown,
+  origin: TomskOriginStatus = "unknown",
+): SchumannSnapshot {
   if (!data || typeof data !== "object") {
     return emptySchumann("Invalid Schumann payload");
   }
   const d = data as Record<string, unknown>;
   const schumannIndex = Number(d.schumann_index ?? 0);
   const activityIndex = Number(d.activity_index ?? 0);
-  // Continuum / SUPT-Dashboard used power~20 as baseline; index 0–100 → factor
   const schumannFactor = Math.max(
     0.5,
     Math.min(2, (Number.isFinite(schumannIndex) ? schumannIndex : 20) / 50),
@@ -91,6 +135,11 @@ export function parseSchumannJson(data: unknown): SchumannSnapshot {
     schumannFactor,
     charts: TOMSK_CHARTS,
     sourceUrl: SCHUMANN_API_URL,
+    tomskOrigin: origin,
+    tomskNote:
+      origin === "down"
+        ? "SOSRFF origin unreachable from server — proxy charts may fail; index still from ResonanceOne."
+        : "Charts via same-origin proxy (browser DNS to tsu.ru often blocked). Numbers from ResonanceOne.",
   };
 }
 

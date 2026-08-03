@@ -31,6 +31,96 @@ function pgliteBootstrapPlugin(): Plugin {
 }
 
 /**
+ * Proxy Tomsk SOSRFF charts in dev (and any Vite middleware path).
+ * Production Nitro route: server/routes/api/tomsk.get.ts
+ */
+function tomskProxyPlugin(): Plugin {
+  return {
+    name: "ses:tomsk-proxy",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          const rawUrl = req.url ?? "";
+          const pathOnly = rawUrl.split("?", 1)[0] ?? "";
+          if (pathOnly !== "/api/tomsk") {
+            next();
+            return;
+          }
+          if ((req.method ?? "GET").toUpperCase() === "HEAD") {
+            // Health probe without body
+            const u = new URL(rawUrl, "http://local");
+            const file = u.searchParams.get("file") ?? "";
+            const mod = (await server.ssrLoadModule(
+              "/src/lib/supt/tomskProxy.server.ts",
+            )) as {
+              fetchTomskChart: (f: string) => Promise<
+                | { ok: true; body: ArrayBuffer; contentType: string; upstream: string }
+                | { ok: false; status: number; message: string; upstream?: string }
+              >;
+            };
+            const result = await mod.fetchTomskChart(file);
+            if (!result.ok) {
+              res.statusCode = result.status;
+              res.end();
+              return;
+            }
+            res.statusCode = 200;
+            res.setHeader("content-type", result.contentType);
+            res.setHeader("content-length", String(result.body.byteLength));
+            res.setHeader("cache-control", "public, max-age=120");
+            res.end();
+            return;
+          }
+          if ((req.method ?? "GET").toUpperCase() !== "GET") {
+            res.statusCode = 405;
+            res.end("Method Not Allowed");
+            return;
+          }
+          const u = new URL(rawUrl, "http://local");
+          const file = u.searchParams.get("file") ?? "";
+          const mod = (await server.ssrLoadModule(
+            "/src/lib/supt/tomskProxy.server.ts",
+          )) as {
+            fetchTomskChart: (f: string) => Promise<
+              | { ok: true; body: ArrayBuffer; contentType: string; upstream: string }
+              | { ok: false; status: number; message: string; upstream?: string }
+            >;
+          };
+          const result = await mod.fetchTomskChart(file);
+          if (!result.ok) {
+            res.statusCode = result.status;
+            res.setHeader("content-type", "application/json");
+            res.end(
+              JSON.stringify({
+                error: result.message,
+                upstream: result.upstream,
+              }),
+            );
+            return;
+          }
+          res.statusCode = 200;
+          res.setHeader("content-type", result.contentType);
+          res.setHeader(
+            "cache-control",
+            "public, max-age=120, stale-while-revalidate=600",
+          );
+          res.setHeader("access-control-allow-origin", "*");
+          res.setHeader("x-tomsk-upstream", result.upstream);
+          res.end(Buffer.from(result.body));
+        } catch (err) {
+          console.error("[ses] tomsk proxy failed:", err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify({ error: "tomsk proxy failed" }));
+          }
+        }
+      });
+    },
+  };
+}
+
+/**
  * Live-preview OAuth popup — handled HERE so the agent never has to create a
  * `/auth/popup` route (and cannot break it by scaffolding a React page that
  * paints the full app shell in the popup).
@@ -133,6 +223,7 @@ export default defineConfig(({ command }) => ({
   resolve: { tsconfigPaths: true },
   plugins: [
     pgliteBootstrapPlugin(),
+    tomskProxyPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),
     tailwindcss(),
