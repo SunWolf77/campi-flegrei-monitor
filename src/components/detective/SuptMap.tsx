@@ -1,10 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Expand, Home, Minimize2, X } from "lucide-react";
+import { Expand, HelpCircle, Home, Minimize2, X } from "lucide-react";
 import type { FocusNode, QuakeEvent } from "@/lib/seismic/types";
 import type { FracturePlane, StressNode, Lineament, MigrationStep } from "@/lib/seismic/supt";
 import { leafletMagRadius, timeAgeColor, eventAge01 } from "@/lib/seismic/colors";
 import { magValue, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+
+/** Distinct SUPT layer palette — nodes ≠ fractures */
+export const SUPT_LAYER_COLORS = {
+  /** Stress nodes — amber core, dark ring */
+  nodeFill: "#ffb300",
+  nodeStroke: "#1a1200",
+  nodeSel: "#ff6f00",
+  /** Fracture traces — magenta (not orange) */
+  fracture: "#c2185b",
+  fractureTick: "#880e4f",
+  /** Lineaments — indigo dashed */
+  lineament: "#3949ab",
+  /** Migration — teal */
+  migration: "#00838f",
+  migrationEnd: "#26c6da",
+  /** Stress density field — soft coral, low opacity */
+  fieldHot: "#e64a19",
+  fieldMid: "#ff8a65",
+  fieldCool: "#ffccbc",
+  /** Principal axes */
+  sigmaParallel: "#212121",
+  sigmaNormal: "#1565c0",
+} as const;
 
 type Props = {
   node: FocusNode;
@@ -17,18 +40,15 @@ type Props = {
   selectedNodeId?: string | null;
   onSelectNode?: (id: string) => void;
   className?: string;
-  /** Fill parent; when fullscreen, ignores and uses viewport */
   height?: number | string;
-  /** Show home / fullscreen toolbar (default true) */
   showControls?: boolean;
-  /** Start in fullscreen */
   defaultFullscreen?: boolean;
   onFullscreenChange?: (fs: boolean) => void;
 };
 
 /**
- * Leaflet map with SUPT overlays: stress heatmap, fracture traces, stress nodes, migration path.
- * Fullscreen + home (node focus) + zoom (bottom-right).
+ * Leaflet map with SUPT overlays.
+ * Colors: amber nodes · magenta fractures · indigo lineaments · teal migration.
  */
 export function SuptMap({
   node,
@@ -51,6 +71,7 @@ export function SuptMap({
   const layersRef = useRef<import("leaflet").LayerGroup | null>(null);
   const drawRef = useRef<() => Promise<void>>(async () => {});
   const [fullscreen, setFullscreen] = useState(defaultFullscreen);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const tRange = useMemo(() => {
     if (!events.length) {
@@ -100,7 +121,6 @@ export function SuptMap({
     (fs: boolean) => {
       setFullscreen(fs);
       onFullscreenChange?.(fs);
-      // lock body scroll in fullscreen
       if (typeof document !== "undefined") {
         document.body.style.overflow = fs ? "hidden" : "";
       }
@@ -117,15 +137,44 @@ export function SuptMap({
     };
   }, []);
 
-  // Escape exits fullscreen
+  // Keyboard shortcuts
   useEffect(() => {
-    if (!fullscreen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFs(false);
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable)
+        return;
+      if (e.key === "Escape") {
+        if (helpOpen) setHelpOpen(false);
+        else if (fullscreen) setFs(false);
+        return;
+      }
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+        e.preventDefault();
+        setHelpOpen((v) => !v);
+        return;
+      }
+      const k = e.key.toLowerCase();
+      if (k === "h" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        void goHome();
+      } else if (k === "g" && !e.metaKey && !e.ctrlKey) {
+        // g = fabric / geometry frame (F is often find)
+        e.preventDefault();
+        void fitToFabric();
+      } else if (k === "f" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setFs(!fullscreen);
+      } else if ((k === "+" || k === "=") && mapRef.current) {
+        e.preventDefault();
+        mapRef.current.zoomIn();
+      } else if ((k === "-" || k === "_") && mapRef.current) {
+        e.preventDefault();
+        mapRef.current.zoomOut();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fullscreen, setFs]);
+  }, [fullscreen, helpOpen, setFs, goHome, fitToFabric]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,17 +185,20 @@ export function SuptMap({
       const group = layersRef.current;
       if (!map || !group) return;
       group.clearLayers();
+      const C = SUPT_LAYER_COLORS;
 
+      // Stress density field (soft coral — not same as nodes)
       for (const cell of stressField) {
         if (cell.intensity < 0.12) continue;
         L.circleMarker([cell.lat, cell.lon], {
           radius: 6 + cell.intensity * 14,
           stroke: false,
-          fillColor: intensityColor(cell.intensity),
-          fillOpacity: 0.12 + cell.intensity * 0.35,
+          fillColor: fieldColor(cell.intensity),
+          fillOpacity: 0.1 + cell.intensity * 0.28,
         }).addTo(group);
       }
 
+      // Lineaments — indigo dashed (fabric grain)
       for (const lin of lineaments) {
         L.polyline(
           [
@@ -154,16 +206,19 @@ export function SuptMap({
             [lin.endpoints[1].lat, lin.endpoints[1].lon],
           ],
           {
-            color: "#5c6bc0",
+            color: C.lineament,
             weight: 1.5 + lin.weight * 2,
-            dashArray: "6 4",
+            dashArray: "7 5",
             opacity: 0.55 + lin.weight * 0.35,
           },
         )
-          .bindTooltip(`Lineament ~${lin.strikeDeg.toFixed(0)}°`, { sticky: true })
+          .bindTooltip(`Lineament ~${lin.strikeDeg.toFixed(0)}° (pairwise fabric)`, {
+            sticky: true,
+          })
           .addTo(group);
       }
 
+      // Fracture traces — MAGENTA solid (distinct from amber nodes)
       for (const pl of planes) {
         L.polyline(
           [
@@ -171,48 +226,59 @@ export function SuptMap({
             [pl.trace[1].lat, pl.trace[1].lon],
           ],
           {
-            color: "#c62828",
-            weight: 2.5 + pl.confidence * 2,
-            opacity: 0.75 + pl.confidence * 0.2,
+            color: C.fracture,
+            weight: 3 + pl.confidence * 2.5,
+            opacity: 0.88,
+            lineCap: "round",
           },
         )
           .bindTooltip(
-            `${pl.label}<br/>conf ${(pl.confidence * 100).toFixed(0)}% · n=${pl.support} · RMS ${pl.rmsKm.toFixed(2)} km`,
+            `<strong style="color:${C.fracture}">Fracture · ${pl.label}</strong><br/>` +
+              `strike ${pl.strikeDeg.toFixed(0)}° · dip ${pl.dipDeg.toFixed(0)}°<br/>` +
+              `conf ${(pl.confidence * 100).toFixed(0)}% · n=${pl.support} · RMS ${pl.rmsKm.toFixed(2)} km`,
             { sticky: true },
           )
           .addTo(group);
 
+        // Strike tick at centroid (small magenta diamond)
         L.circleMarker([pl.centroid.lat, pl.centroid.lon], {
-          radius: 4,
-          color: "#b71c1c",
-          fillColor: "#ef5350",
-          fillOpacity: 0.9,
-          weight: 1,
-        }).addTo(group);
+          radius: 5,
+          color: C.fractureTick,
+          fillColor: C.fracture,
+          fillOpacity: 1,
+          weight: 2,
+        })
+          .bindTooltip(`Plane centroid · strike ${pl.strikeDeg.toFixed(0)}°`)
+          .addTo(group);
+
+        // Principal-axis proxy: strike-parallel (σ∥) and map-projected normal (σ⊥)
+        drawStressAxes(L, group, pl, C);
       }
 
+      // Migration — teal
       if (migration.length >= 2) {
         const latlngs = migration.map(
           (m) => [m.centroid.lat, m.centroid.lon] as [number, number],
         );
         L.polyline(latlngs, {
-          color: "#00838f",
-          weight: 2,
-          opacity: 0.85,
+          color: C.migration,
+          weight: 2.5,
+          opacity: 0.9,
         }).addTo(group);
         migration.forEach((m, i) => {
           L.circleMarker([m.centroid.lat, m.centroid.lon], {
-            radius: i === migration.length - 1 ? 6 : 3,
-            color: "#006064",
-            fillColor: i === migration.length - 1 ? "#26c6da" : "#80deea",
+            radius: i === migration.length - 1 ? 7 : 3.5,
+            color: "#004d40",
+            fillColor: i === migration.length - 1 ? C.migrationEnd : C.migration,
             fillOpacity: 0.95,
-            weight: 1,
+            weight: 1.5,
           })
             .bindTooltip(`Migration step ${i + 1} · n=${m.count}`, { direction: "top" })
             .addTo(group);
         });
       }
 
+      // Events (subtle)
       const sorted = [...events].sort(
         (a, b) => magValue(a.magnitude) - magValue(b.magnitude),
       );
@@ -220,25 +286,27 @@ export function SuptMap({
         const age = eventAge01(ev.time, tRange.tMin, tRange.tMax);
         L.circleMarker([ev.latitude, ev.longitude], {
           radius: Math.max(2, leafletMagRadius(ev.magnitude) * 0.55),
-          color: "rgba(0,0,0,0.25)",
+          color: "rgba(0,0,0,0.2)",
           weight: 0.5,
           fillColor: timeAgeColor(age),
-          fillOpacity: 0.45,
+          fillOpacity: 0.4,
         }).addTo(group);
       }
 
+      // Stress nodes — AMBER (not magenta) with dark ring + rank
       stressNodes.forEach((sn) => {
         const sel = sn.id === selectedNodeId;
         const marker = L.circleMarker([sn.location.lat, sn.location.lon], {
-          radius: sel ? 12 : 8 + sn.score / 25,
-          color: sel ? "#212121" : "#e65100",
-          weight: sel ? 3 : 2,
-          fillColor: sn.score >= 70 ? "#d84315" : sn.score >= 55 ? "#fb8c00" : "#ffb74d",
-          fillOpacity: 0.92,
+          radius: sel ? 13 : 9 + sn.score / 28,
+          color: sel ? C.nodeSel : C.nodeStroke,
+          weight: sel ? 3.5 : 2.5,
+          fillColor: sn.score >= 70 ? "#ff8f00" : sn.score >= 55 ? C.nodeFill : "#ffe082",
+          fillOpacity: 0.95,
         });
         marker.bindTooltip(
-          `<strong>Stress node #${sn.rank}</strong> · score ${sn.score}<br/>` +
-            `${sn.depthKm.toFixed(1)} km · n=${sn.eventCount} · max M${sn.maxMag.toFixed(1)}`,
+          `<strong style="color:#e65100">Stress node #${sn.rank}</strong> · score ${sn.score}<br/>` +
+            `${sn.depthKm.toFixed(1)} km · n=${sn.eventCount} · max M${sn.maxMag.toFixed(1)}<br/>` +
+            `<span style="opacity:.8">Density / energy / shallowness proxy — not a forecast.</span>`,
           { direction: "top" },
         );
         marker.on("click", (e) => {
@@ -250,7 +318,7 @@ export function SuptMap({
         L.marker([sn.location.lat, sn.location.lon], {
           icon: L.divIcon({
             className: "supt-node-label",
-            html: `<div style="font:700 10px/1 ui-monospace,monospace;color:#1a1a1a;background:rgba(255,255,255,.85);border-radius:4px;padding:1px 4px;border:1px solid rgba(0,0,0,.2)">${sn.rank}</div>`,
+            html: `<div style="font:700 10px/1 ui-monospace,monospace;color:#1a1200;background:#fff8e1;border-radius:4px;padding:1px 4px;border:1.5px solid #ff8f00;box-shadow:0 1px 2px rgba(0,0,0,.2)">${sn.rank}</div>`,
             iconSize: [18, 14],
             iconAnchor: [-6, 20],
           }),
@@ -333,7 +401,6 @@ export function SuptMap({
     void drawRef.current();
   }, [events, planes, stressNodes, lineaments, migration, stressField, selectedNodeId, tRange]);
 
-  // After first fabric load, gently frame stress nodes once
   const fittedFabric = useRef(false);
   useEffect(() => {
     if (fittedFabric.current) return;
@@ -358,6 +425,8 @@ export function SuptMap({
       ? { height }
       : { height };
 
+  const C = SUPT_LAYER_COLORS;
+
   return (
     <div
       className={cn(
@@ -379,7 +448,7 @@ export function SuptMap({
             variant="secondary"
             className="h-8 gap-1 border border-border bg-card/95 px-2 text-[11px] shadow-md backdrop-blur-sm"
             onClick={() => void goHome()}
-            title="Home — focus node caldera / arc"
+            title="Home (H) — focus caldera"
           >
             <Home className="size-3.5" />
             Home
@@ -390,7 +459,7 @@ export function SuptMap({
             variant="secondary"
             className="h-8 gap-1 border border-border bg-card/95 px-2 text-[11px] shadow-md backdrop-blur-sm"
             onClick={() => void fitToFabric()}
-            title="Frame stress nodes & fractures"
+            title="Fabric (G) — frame stress & fractures"
           >
             Fabric
           </Button>
@@ -400,7 +469,7 @@ export function SuptMap({
             variant={fullscreen ? "default" : "secondary"}
             className="h-8 gap-1 border border-border bg-card/95 px-2 text-[11px] shadow-md backdrop-blur-sm"
             onClick={() => setFs(!fullscreen)}
-            title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen stress map"}
+            title="Fullscreen (F) · Esc exit"
           >
             {fullscreen ? (
               <>
@@ -413,6 +482,16 @@ export function SuptMap({
                 Full
               </>
             )}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={helpOpen ? "default" : "secondary"}
+            className="h-8 w-8 border border-border bg-card/95 px-0 shadow-md"
+            onClick={() => setHelpOpen((v) => !v)}
+            title="Keys (?)"
+          >
+            <HelpCircle className="size-3.5" />
           </Button>
           {fullscreen && (
             <Button
@@ -429,39 +508,129 @@ export function SuptMap({
         </div>
       )}
 
-      {/* Legend */}
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[160px] rounded-md border border-border/80 bg-card/95 px-2 py-1.5 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
+      {/* Legend — distinct colors */}
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[190px] rounded-md border border-border/80 bg-card/95 px-2 py-1.5 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
         <div className="mb-1 font-medium text-foreground">SUPT layers</div>
         <div className="space-y-0.5">
-          <Row color="#e65100" label="Stress nodes" />
-          <Row color="#c62828" label="Fracture traces" />
-          <Row color="#5c6bc0" label="Lineaments" />
-          <Row color="#00838f" label="Migration path" />
-          <Row color="#ffcc80" label="Stress field" />
+          <Row color={C.nodeFill} border={C.nodeStroke} label="Stress nodes (amber)" />
+          <Row color={C.fracture} label="Fracture traces (magenta)" />
+          <Row color={C.lineament} label="Lineaments (indigo)" />
+          <Row color={C.migration} label="Migration path (teal)" />
+          <Row color={C.fieldMid} label="Stress field (coral)" />
+          <Row color={C.sigmaNormal} label="σ⊥ normal (blue tick)" />
         </div>
       </div>
 
       {fullscreen && (
         <div className="pointer-events-none absolute top-2 right-2 z-20 rounded-md border border-border/80 bg-card/95 px-2 py-1 font-mono text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
-          {node.code} · stress & fracture · Esc to exit
+          {node.code} · stress & fracture · Esc exit · ? keys
+        </div>
+      )}
+
+      {helpOpen && (
+        <div className="absolute inset-x-2 bottom-16 z-30 mx-auto max-w-md rounded-lg border border-border bg-card/98 p-3 text-xs shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:right-auto">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="font-semibold">Keyboard · Stress map</span>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setHelpOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
+            <dt className="text-accent">H</dt>
+            <dd>Home — node caldera / arc frame</dd>
+            <dt className="text-accent">G</dt>
+            <dd>Fabric — fit stress nodes + fractures</dd>
+            <dt className="text-accent">F</dt>
+            <dd>Toggle fullscreen</dd>
+            <dt className="text-accent">+ / −</dt>
+            <dd>Zoom in / out</dd>
+            <dt className="text-accent">Esc</dt>
+            <dd>Exit fullscreen / close help</dd>
+            <dt className="text-accent">?</dt>
+            <dd>This help</dd>
+          </dl>
+          <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+            Amber = where energy/density piles up. Magenta = PCA fracture geometry. Connecting
+            them is observational co-location — not a forecast of the next break.
+          </p>
         </div>
       )}
     </div>
   );
 }
 
-function Row({ color, label }: { color: string; label: string }) {
+function Row({
+  color,
+  label,
+  border,
+}: {
+  color: string;
+  label: string;
+  border?: string;
+}) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="size-2 shrink-0 rounded-full" style={{ background: color }} />
+      <span
+        className="size-2.5 shrink-0 rounded-full"
+        style={{
+          background: color,
+          boxShadow: border ? `inset 0 0 0 1.5px ${border}` : undefined,
+        }}
+      />
       {label}
     </div>
   );
 }
 
-function intensityColor(i: number): string {
-  if (i >= 0.75) return "#e65100";
-  if (i >= 0.5) return "#fb8c00";
-  if (i >= 0.3) return "#ffb74d";
-  return "#ffe0b2";
+function fieldColor(i: number): string {
+  if (i >= 0.75) return SUPT_LAYER_COLORS.fieldHot;
+  if (i >= 0.5) return SUPT_LAYER_COLORS.fieldMid;
+  return SUPT_LAYER_COLORS.fieldCool;
+}
+
+/** Map-plane principal axes from fracture strike/dip (geometric proxy, not CMT). */
+function drawStressAxes(
+  L: typeof import("leaflet"),
+  group: import("leaflet").LayerGroup,
+  pl: FracturePlane,
+  C: typeof SUPT_LAYER_COLORS,
+) {
+  const lat0 = (pl.centroid.lat * Math.PI) / 180;
+  const kmN = 0.9; // half-length of axis ticks (km)
+  const strike = (pl.strikeDeg * Math.PI) / 180;
+  // Strike direction (along fracture, map horizontal)
+  const dLatS = (kmN * Math.cos(strike)) / 110.574;
+  const dLonS = (kmN * Math.sin(strike)) / (111.32 * Math.cos(lat0));
+  // Normal in map plane (strike + 90°)
+  const dLatN = (kmN * Math.cos(strike + Math.PI / 2)) / 110.574;
+  const dLonN = (kmN * Math.sin(strike + Math.PI / 2)) / (111.32 * Math.cos(lat0));
+
+  const c = pl.centroid;
+  // σ∥ strike-parallel (black)
+  L.polyline(
+    [
+      [c.lat - dLatS, c.lon - dLonS],
+      [c.lat + dLatS, c.lon + dLonS],
+    ],
+    { color: C.sigmaParallel, weight: 2, opacity: 0.85 },
+  )
+    .bindTooltip(`σ∥ strike-parallel ~${pl.strikeDeg.toFixed(0)}° (fabric proxy)`)
+    .addTo(group);
+
+  // σ⊥ map-normal to strike (blue) — opening/compression orientation proxy
+  L.polyline(
+    [
+      [c.lat - dLatN * 0.7, c.lon - dLonN * 0.7],
+      [c.lat + dLatN * 0.7, c.lon + dLonN * 0.7],
+    ],
+    { color: C.sigmaNormal, weight: 2, opacity: 0.9, dashArray: "2 3" },
+  )
+    .bindTooltip(
+      `σ⊥ horizontal normal to strike · dip ${pl.dipDeg.toFixed(0)}° plane (not a full tensor)`,
+    )
+    .addTo(group);
 }
