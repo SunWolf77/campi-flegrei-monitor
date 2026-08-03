@@ -13,6 +13,7 @@ import {
   VolumeX,
   SlidersHorizontal,
   ChevronDown,
+  ChevronUp,
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,9 +55,12 @@ import {
   getQuietMode,
   setQuietMode,
   getQuietSource,
-  isMobileViewport,
+  getHeaderCollapsedPref,
+  setHeaderCollapsedPref,
   type QuietSource,
 } from "@/lib/ui/prefs";
+import { preferCollapsedChrome } from "@/lib/ui/breakpoints";
+import { useViewport } from "@/lib/ui/useViewport";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn, formatDateTime, formatMag, formatRelativeTime, magValue } from "@/lib/utils";
 
@@ -120,21 +124,20 @@ export function MonitorApp({ initial }: Props) {
   const [quiet, setQuiet] = useState(() => getQuietMode());
   const [quietSource, setQuietSource] = useState<QuietSource>(() => getQuietSource());
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const vp = useViewport();
+  const isMobile = vp.isMobile;
+  /** User override for header; null → responsive default */
+  const [headerCollapsedUser, setHeaderCollapsedUser] = useState<boolean | null>(
+    () => getHeaderCollapsedPref(),
+  );
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [chromeH, setChromeH] = useState(96);
 
-  // Mobile quiet: auto on first visit; re-apply suggestion if user never chose
+  // Quiet + collapse prefs on mount
   useEffect(() => {
-    setIsMobile(isMobileViewport());
-    const mq = window.matchMedia("(max-width: 767px)");
-    const onMq = () => {
-      setIsMobile(mq.matches);
-      // If still on auto-mobile source and viewport becomes desktop, leave quiet as stored
-    };
-    mq.addEventListener("change", onMq);
-    // Ensure first-load mobile quiet ran (getQuietMode side effect)
     setQuiet(getQuietMode());
     setQuietSource(getQuietSource());
-    return () => mq.removeEventListener("change", onMq);
+    setHeaderCollapsedUser(getHeaderCollapsedPref());
   }, []);
 
   const node = useMemo(() => getFocusNode(nodeId), [nodeId]);
@@ -269,29 +272,59 @@ export function MonitorApp({ initial }: Props) {
   const filterActive =
     minMag > 0 || (nodeId === "campi-flegrei" && maxDepthKm != null && maxDepthKm !== 8);
 
+  // Collapsed header: user pref wins; else auto on map + (mobile | short)
+  const headerCollapsed =
+    headerCollapsedUser != null
+      ? headerCollapsedUser
+      : preferCollapsedChrome(vp, tab === "map");
+
+  const toggleHeader = () => {
+    const next = !headerCollapsed;
+    setHeaderCollapsedUser(next);
+    setHeaderCollapsedPref(next);
+    if (next) setFiltersOpen(false);
+  };
+
+  // Measure sticky chrome (header + tabs row lives in main — measure header only)
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setChromeH(Math.ceil(el.getBoundingClientRect().height));
+    });
+    ro.observe(el);
+    setChromeH(Math.ceil(el.getBoundingClientRect().height));
+    return () => ro.disconnect();
+  }, [headerCollapsed, filtersOpen, quiet]);
+
+  // Map fill: visualViewport on mobile (browser chrome), else layout height
+  const mapHeightPx = Math.max(
+    280,
+    Math.floor(vp.vvHeight - chromeH - (tab === "map" ? 44 : 0) - 8),
+  );
+
   return (
     <div className="min-h-dvh overflow-x-hidden bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-1 px-2 py-1.5 sm:px-4 sm:py-1.5">
-          {/* Row 1: identity · pulse · actions — single scan line */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="flex min-w-0 shrink items-center gap-1.5">
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-md"
+      >
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-0.5 px-2 py-1 sm:px-3 sm:py-1.5">
+          {/* Always-on: identity · pulse · collapse · actions */}
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <div className="flex min-w-0 shrink items-center gap-1">
               <Satellite className="size-3.5 shrink-0 text-accent" />
-              <h1 className="truncate text-sm font-semibold tracking-tight">
-                {node.name}
+              <h1 className="truncate text-[13px] font-semibold tracking-tight sm:text-sm">
+                {headerCollapsed && isMobile ? node.code : node.name}
               </h1>
-              <Badge variant="live" className="hidden h-5 px-1.5 text-[10px] sm:inline-flex">
-                #{node.networkOrder}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="hidden h-5 px-1 font-mono text-[10px] uppercase md:inline-flex"
-              >
-                {data?.provider ?? "—"}
-              </Badge>
+              {!headerCollapsed && (
+                <Badge variant="live" className="hidden h-5 px-1 text-[10px] sm:inline-flex">
+                  #{node.networkOrder}
+                </Badge>
+              )}
               {quiet && (
                 <Badge variant="secondary" className="h-5 px-1 text-[10px]">
-                  Quiet
+                  Q
                 </Badge>
               )}
             </div>
@@ -307,13 +340,29 @@ export function MonitorApp({ initial }: Props) {
             </div>
 
             <div className="flex shrink-0 items-center gap-0.5">
-              <ThemeToggle />
+              <Button
+                type="button"
+                variant={headerCollapsed ? "default" : "ghost"}
+                size="sm"
+                className="h-8 w-8 px-0"
+                onClick={toggleHeader}
+                title={headerCollapsed ? "Expand header" : "Collapse header — more map"}
+                aria-expanded={!headerCollapsed}
+                aria-label={headerCollapsed ? "Expand header" : "Collapse header"}
+              >
+                {headerCollapsed ? (
+                  <ChevronDown className="size-3.5" />
+                ) : (
+                  <ChevronUp className="size-3.5" />
+                )}
+              </Button>
+              {!headerCollapsed && <ThemeToggle />}
               <Button
                 variant={quiet ? "default" : "ghost"}
                 size="sm"
                 onClick={toggleQuiet}
                 className="h-8 w-8 px-0"
-                title={quiet ? "Quiet on — show full chrome" : "Quiet mode"}
+                title={quiet ? "Quiet on" : "Quiet mode"}
               >
                 {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
               </Button>
@@ -327,16 +376,18 @@ export function MonitorApp({ initial }: Props) {
               >
                 <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
               </Button>
-              <Button
-                variant={autoRefresh ? "default" : "outline"}
-                size="sm"
-                onClick={() => setAutoRefresh((v) => !v)}
-                className="h-8 min-w-9 px-1.5 font-mono text-[10px]"
-                title="Auto-refresh"
-              >
-                {autoRefresh ? "60s" : "Off"}
-              </Button>
-              {!quiet && (
+              {!headerCollapsed && (
+                <Button
+                  variant={autoRefresh ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setAutoRefresh((v) => !v)}
+                  className="h-8 min-w-9 px-1.5 font-mono text-[10px]"
+                  title="Auto-refresh"
+                >
+                  {autoRefresh ? "60s" : "Off"}
+                </Button>
+              )}
+              {!headerCollapsed && !quiet && vp.bp !== "xs" && (
                 <a
                   href={sentinelFocusUrl(nodeId)}
                   target="_blank"
@@ -351,9 +402,95 @@ export function MonitorApp({ initial }: Props) {
             </div>
           </div>
 
-          {/* Row 2: node · window · filters only */}
-          <div className="flex flex-wrap items-center gap-1">
-            <div className="flex rounded-md border border-border p-0.5">
+          {/* Collapsible: node · window · filters */}
+          {!headerCollapsed && (
+            <div className="flex flex-wrap items-center gap-1 pt-0.5">
+              <div className="flex rounded-md border border-border p-0.5">
+                {nodes.map((n) => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => {
+                      setNodeId(n.id);
+                      if (n.id === "tonga-kermadec") setMaxDepthKm(null);
+                      else if (maxDepthKm == null) setMaxDepthKm(8);
+                    }}
+                    className={cn(
+                      "min-h-7 rounded px-2 text-[11px] font-medium transition-colors",
+                      nodeId === n.id
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
+                  >
+                    <span className="font-mono text-[9px] opacity-70">#{n.networkOrder}</span>{" "}
+                    {n.code}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-0.5 overflow-x-auto">
+                {WINDOWS.map((w) => (
+                  <button
+                    key={w.key}
+                    type="button"
+                    onClick={() => setWindowKey(w.key)}
+                    className={cn(
+                      "min-h-7 min-w-8 rounded-md px-1.5 font-mono text-[11px] tabular-nums transition-colors",
+                      windowKey === w.key
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:bg-secondary",
+                    )}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((v) => !v)}
+                className={cn(
+                  "inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium",
+                  filtersOpen || filterActive
+                    ? "border-accent/40 bg-accent/10 text-accent"
+                    : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                <SlidersHorizontal className="size-3" />
+                <span className="hidden sm:inline">Filters</span>
+                {filterActive && (
+                  <span className="font-mono text-[10px]">
+                    {minMag > 0 ? `M≥${minMag}` : ""}
+                    {nodeId === "campi-flegrei" && maxDepthKm != null && maxDepthKm !== 8
+                      ? ` Z≤${maxDepthKm}`
+                      : ""}
+                  </span>
+                )}
+                <ChevronDown
+                  className={cn(
+                    "size-3 opacity-70 transition-transform",
+                    filtersOpen && "rotate-180",
+                  )}
+                />
+              </button>
+
+              {!quiet && vp.isDesktop && (
+                <a
+                  href={companionBoardUrl(nodeId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto hidden min-h-7 items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground lg:inline-flex"
+                >
+                  {companionBoardLabel(nodeId)}
+                  <ExternalLink className="size-2.5 opacity-70" />
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Collapsed quick node/window chips — essential only */}
+          {headerCollapsed && (
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
               {nodes.map((n) => (
                 <button
                   key={n.id}
@@ -364,75 +501,35 @@ export function MonitorApp({ initial }: Props) {
                     else if (maxDepthKm == null) setMaxDepthKm(8);
                   }}
                   className={cn(
-                    "min-h-7 rounded px-2 text-[11px] font-medium transition-colors",
+                    "min-h-6 shrink-0 rounded px-1.5 font-mono text-[10px]",
                     nodeId === n.id
                       ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      : "bg-secondary text-muted-foreground",
                   )}
                 >
-                  <span className="font-mono text-[9px] opacity-70">#{n.networkOrder}</span>{" "}
                   {n.code}
                 </button>
               ))}
-            </div>
-
-            <div className="flex gap-0.5 overflow-x-auto">
+              <span className="text-border">|</span>
               {WINDOWS.map((w) => (
                 <button
                   key={w.key}
                   type="button"
                   onClick={() => setWindowKey(w.key)}
                   className={cn(
-                    "min-h-7 min-w-8 rounded-md px-1.5 font-mono text-[11px] tabular-nums transition-colors",
+                    "min-h-6 shrink-0 rounded px-1 font-mono text-[10px] tabular-nums",
                     windowKey === w.key
                       ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-secondary",
+                      : "text-muted-foreground",
                   )}
                 >
                   {w.label}
                 </button>
               ))}
             </div>
+          )}
 
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((v) => !v)}
-              className={cn(
-                "inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium",
-                filtersOpen || filterActive
-                  ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
-              )}
-            >
-              <SlidersHorizontal className="size-3" />
-              <span className="hidden xs:inline sm:inline">Filters</span>
-              {filterActive && (
-                <span className="font-mono text-[10px]">
-                  {minMag > 0 ? `M≥${minMag}` : ""}
-                  {nodeId === "campi-flegrei" && maxDepthKm != null && maxDepthKm !== 8
-                    ? ` Z≤${maxDepthKm}`
-                    : ""}
-                </span>
-              )}
-              <ChevronDown
-                className={cn("size-3 opacity-70 transition-transform", filtersOpen && "rotate-180")}
-              />
-            </button>
-
-            {!quiet && (
-              <a
-                href={companionBoardUrl(nodeId)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto hidden min-h-7 items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground lg:inline-flex"
-              >
-                {companionBoardLabel(nodeId)}
-                <ExternalLink className="size-2.5 opacity-70" />
-              </a>
-            )}
-          </div>
-
-          {filtersOpen && (
+          {!headerCollapsed && filtersOpen && (
             <div className="flex flex-col gap-1.5 rounded-md border border-border bg-secondary/25 px-2 py-1.5 sm:flex-row sm:flex-wrap sm:items-center">
               <div className="flex flex-wrap items-center gap-1">
                 <span className="mr-1 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -607,7 +704,8 @@ export function MonitorApp({ initial }: Props) {
                 </div>
               </CardHeader>
               <CardContent className="p-0 sm:p-1 sm:pt-0">
-                <div className="h-[calc(100dvh-8.5rem)] min-h-[340px] max-h-none">
+                <div className="min-h-[280px] w-full"
+                  style={{ height: mapHeightPx }}>
                   <OsmEpicenterMap
                     node={node}
                     events={events}

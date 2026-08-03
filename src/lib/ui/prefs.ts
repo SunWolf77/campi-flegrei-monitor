@@ -1,5 +1,5 @@
 /**
- * UI preferences — progressive disclosure + theme.
+ * UI preferences — progressive disclosure + theme + header collapse.
  * Stored in localStorage; mobile quiet defaults on first visit (<768px).
  */
 
@@ -7,9 +7,15 @@ const QUIET_KEY = "ses-cf-quiet-mode";
 const QUIET_SOURCE_KEY = "ses-cf-quiet-source"; // user | auto-mobile
 const SUPT_FOCUS_KEY = "ses-cf-supt-focus";
 const THEME_KEY = "ses-cf-theme"; // light | dark | system
+const HEADER_COLLAPSE_KEY = "ses-cf-header-collapsed";
 
 export type ThemeMode = "light" | "dark" | "system";
 export type QuietSource = "user" | "auto-mobile" | "default";
+
+export function isMobileViewport(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 767px)").matches;
+}
 
 export function getQuietMode(): boolean {
   if (typeof window === "undefined") return false;
@@ -70,6 +76,28 @@ export function setSuptFocusMode(focus: boolean): void {
   }
 }
 
+/** null = follow responsive default (mobile/short → collapsed on map) */
+export function getHeaderCollapsedPref(): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(HEADER_COLLAPSE_KEY);
+    if (v === "1") return true;
+    if (v === "0") return false;
+  } catch {
+    /* */
+  }
+  return null;
+}
+
+export function setHeaderCollapsedPref(collapsed: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(HEADER_COLLAPSE_KEY, collapsed ? "1" : "0");
+  } catch {
+    /* */
+  }
+}
+
 export function getThemeMode(): ThemeMode {
   if (typeof window === "undefined") return "dark";
   try {
@@ -109,17 +137,11 @@ export function applyTheme(mode?: ThemeMode): "light" | "dark" {
   root.classList.toggle("dark", resolved === "dark");
   root.style.colorScheme = resolved;
   root.dataset.theme = resolved;
-  // theme-color for mobile chrome
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
     meta.setAttribute("content", resolved === "light" ? "#f4f5f7" : "#0b0c0e");
   }
   return resolved;
-}
-
-export function isMobileViewport(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(max-width: 767px)").matches;
 }
 
 /** Cycle dark → light → system → dark */
