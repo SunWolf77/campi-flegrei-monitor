@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType }
 import {
   Activity,
   AlertTriangle,
-  Brain,
   Crosshair,
   Database,
   Layers,
@@ -67,7 +66,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ShareMenu } from "@/components/ui/ShareMenu";
 import { cn, formatDateTime, formatMag, formatRelativeTime, magValue } from "@/lib/utils";
 
-type TabKey = "map" | "stress" | "depth" | "timeline" | "swarm" | "detective" | "catalog" | "feeds";
+type TabKey = "map" | "fabric" | "depth" | "timeline" | "swarm" | "catalog" | "feeds";
 
 const WINDOWS: { key: WindowKey; label: string }[] = [
   { key: "24h", label: "24h" },
@@ -86,11 +85,10 @@ const DEPTH_GATES: { km: number | null; label: string }[] = [
 
 const TABS: { key: TabKey; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "map", label: "Map", icon: MapIcon },
-  { key: "stress", label: "Stress", icon: Crosshair },
+  { key: "fabric", label: "Fabric", icon: Crosshair },
   { key: "depth", label: "Depth", icon: Layers },
   { key: "timeline", label: "Time", icon: Activity },
   { key: "swarm", label: "Swarms", icon: Waves },
-  { key: "detective", label: "SUPT", icon: Brain },
   { key: "feeds", label: "Feeds", icon: Satellite },
   { key: "catalog", label: "List", icon: Database },
 ];
@@ -292,7 +290,7 @@ export function MonitorApp({ initial }: Props) {
   const headerCollapsed =
     headerCollapsedUser != null
       ? headerCollapsedUser
-      : preferCollapsedChrome(vp, tab === "map" || tab === "stress");
+      : preferCollapsedChrome(vp, tab === "map" || tab === "fabric");
 
   const toggleHeader = () => {
     const next = !headerCollapsed;
@@ -317,7 +315,7 @@ export function MonitorApp({ initial }: Props) {
   const mapHeightPx = mapFillHeightPx(
     vp,
     chromeH,
-    tab === "map" || tab === "stress" ? 40 : 0,
+    tab === "map" || tab === "fabric" ? 40 : 0,
   );
 
   return (
@@ -615,7 +613,7 @@ export function MonitorApp({ initial }: Props) {
         )}
 
         {/* KPIs only off map — pulse strip covers EII/rate on map tab */}
-        {tab !== "map" && tab !== "stress" && (
+        {tab !== "map" && tab !== "fabric" && (
           <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
             <Kpi
               label="Events"
@@ -650,7 +648,7 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
-        {largest && magValue(largest.magnitude) >= 3.5 && tab !== "map" && tab !== "stress" && (
+        {largest && magValue(largest.magnitude) >= 3.5 && tab !== "map" && tab !== "fabric" && (
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-1.5 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <AlertTriangle className="size-3.5 text-destructive" />
@@ -757,13 +755,16 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
-        {tab === "stress" && (
-          <StressMapPanel
-            events={events}
-            node={node}
-            swarm={swarm}
-            height={mapHeightPx}
-          />
+        {tab === "fabric" && (
+          <div className="flex min-w-0 flex-col gap-3">
+            <StressMapPanel
+              events={events}
+              node={node}
+              swarm={swarm}
+              height={mapHeightPx}
+            />
+            <SuptDetective events={events} node={node} swarm={swarm} hideMap />
+          </div>
         )}
 
         {tab === "depth" && (
@@ -797,10 +798,8 @@ export function MonitorApp({ initial }: Props) {
             </div>
           </div>
         )}
-        {tab === "detective" && (
-          <SuptDetective events={events} node={node} swarm={swarm} />
-        )}
         {tab === "feeds" && (
+
           <div className="space-y-4">
             <section className="space-y-2">
               <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">

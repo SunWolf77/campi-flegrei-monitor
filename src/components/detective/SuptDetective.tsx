@@ -49,6 +49,8 @@ type Props = {
   events: QuakeEvent[];
   node: FocusNode;
   swarm: SwarmAnalysis;
+  /** When true, skip embedded map (Fabric tab already shows StressMapPanel). */
+  hideMap?: boolean;
 };
 
 const TONE: Record<string, string> = {
@@ -60,7 +62,7 @@ const TONE: Record<string, string> = {
   null: "border-border bg-card",
 };
 
-export function SuptDetective({ events, node, swarm }: Props) {
+export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
   const [sw, setSw] = useState<SpaceWeatherSnapshot | null>(null);
   const [schumann, setSchumann] = useState<SchumannSnapshot | null>(null);
   const [showTech, setShowTech] = useState(false);
@@ -121,14 +123,15 @@ export function SuptDetective({ events, node, swarm }: Props) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3 overflow-x-hidden">
-      {/* Stress map first — fullscreen/home also on Stress tab */}
+      {/* Map only when standalone; Fabric tab supplies StressMapPanel above */}
+      {!hideMap && (
       <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
         <Card className="overflow-hidden">
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <CardTitle className="text-sm">Stress & fracture map</CardTitle>
               <CardDescription className="text-[11px]">
-                Use Full for immersive view · Home resets caldera · also under Stress tab
+                Fullscreen · Home resets caldera · layer toggles on map
               </CardDescription>
             </div>
           </CardHeader>
@@ -225,6 +228,55 @@ export function SuptDetective({ events, node, swarm }: Props) {
           )}
         </div>
       </div>
+      )}
+
+      {hideMap && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="size-4 text-warn" />
+              <CardTitle>Detective findings</CardTitle>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                SUPT · fabric
+              </Badge>
+            </div>
+            <CardDescription className="text-[11px]">
+              Map above · findings from the same window · not a forecast
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex max-h-[min(40vh,360px)] flex-col gap-2 overflow-y-auto">
+            {report.findings.map((f) => (
+              <div
+                key={f.id}
+                className={cn(
+                  "rounded-lg border px-3 py-2",
+                  f.severity === "alert" && "border-destructive/35 bg-destructive/5",
+                  f.severity === "watch" && "border-warn/35 bg-warn/5",
+                  f.severity === "info" && "border-border bg-secondary/40",
+                )}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant={
+                      f.severity === "alert"
+                        ? "critical"
+                        : f.severity === "watch"
+                          ? "warn"
+                          : "outline"
+                    }
+                  >
+                    {f.severity}
+                  </Badge>
+                  <span className="text-sm font-medium">{f.title}</span>
+                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  {f.detail}
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <EpochLogPanel
         nodeId={node.id}
@@ -264,7 +316,7 @@ export function SuptDetective({ events, node, swarm }: Props) {
           </div>
           <CardDescription>
             {focusMode
-              ? "Focus: findings · continuum · stress map. Switch to Advanced for ETAS, harmonic, fabric tables."
+              ? "Focus: findings · continuum · fabric. Switch to Advanced for ETAS, harmonic, tables."
               : "Advanced: full pipeline — ETAS, harmonic fingerprint, planes, local probes, LAIC."}{" "}
             Not a forecast.
           </CardDescription>
