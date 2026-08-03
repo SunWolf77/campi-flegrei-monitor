@@ -14,11 +14,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ExternalLink,
-  Globe2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { OsmEpicenterMap, type MapColorMode } from "@/components/map/OsmEpicenterMap";
 import { DepthProfile } from "@/components/charts/DepthProfile";
 import { TimelineCharts } from "@/components/charts/TimelineCharts";
@@ -273,89 +272,87 @@ export function MonitorApp({ initial }: Props) {
   return (
     <div className="min-h-dvh overflow-x-hidden bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-2 px-3 py-2 sm:px-5 sm:py-2.5">
-          {/* R1: identity + actions */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <Satellite className="size-4 shrink-0 text-accent" />
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <h1 className="truncate text-sm font-semibold tracking-tight sm:text-base">
-                    {node.name}
-                  </h1>
-                  <Badge variant="live" className="h-5 px-1.5 text-[10px]">
-                    SES #{node.networkOrder}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="hidden h-5 px-1.5 font-mono text-[10px] uppercase sm:inline-flex"
-                  >
-                    {data?.provider ?? "—"}
-                  </Badge>
-                  {quiet && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                      Quiet
-                    </Badge>
-                  )}
-                </div>
-                <p className="hidden truncate text-[11px] text-muted-foreground sm:block">
-                  {authority.label} · exclusive · no dual-read
-                </p>
-              </div>
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-1 px-2 py-1.5 sm:px-4 sm:py-1.5">
+          {/* Row 1: identity · pulse · actions — single scan line */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex min-w-0 shrink items-center gap-1.5">
+              <Satellite className="size-3.5 shrink-0 text-accent" />
+              <h1 className="truncate text-sm font-semibold tracking-tight">
+                {node.name}
+              </h1>
+              <Badge variant="live" className="hidden h-5 px-1.5 text-[10px] sm:inline-flex">
+                #{node.networkOrder}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="hidden h-5 px-1 font-mono text-[10px] uppercase md:inline-flex"
+              >
+                {data?.provider ?? "—"}
+              </Badge>
+              {quiet && (
+                <Badge variant="secondary" className="h-5 px-1 text-[10px]">
+                  Quiet
+                </Badge>
+              )}
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <PulseStrip
+                continuum={continuum}
+                intensity={intensity}
+                newSincePoll={newSincePoll}
+                rate6h={swarm.rate6h}
+                className="border-0 bg-transparent px-0 py-0"
+              />
+            </div>
+
+            <div className="flex shrink-0 items-center gap-0.5">
               <ThemeToggle />
               <Button
                 variant={quiet ? "default" : "ghost"}
                 size="sm"
                 onClick={toggleQuiet}
-                className="h-9 px-2.5"
-                title={
-                  quietSource === "auto-mobile"
-                    ? "Quiet (auto on mobile) — click to override"
-                    : "Quiet mode — hide library chrome"
-                }
+                className="h-8 w-8 px-0"
+                title={quiet ? "Quiet on — show full chrome" : "Quiet mode"}
               >
                 {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
-                <span className="hidden sm:inline">
-                  {quiet ? (quietSource === "auto-mobile" ? "Quiet·m" : "Quiet") : "Full"}
-                </span>
               </Button>
-              {isMobile && !quiet && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 px-2 text-[11px] sm:hidden"
-                  onClick={enableMobileQuiet}
-                  title="Field mode — hide secondary panels"
-                >
-                  Field
-                </Button>
-              )}
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => void load()}
                 disabled={loading}
-                className="h-9 px-2.5"
+                className="h-8 w-8 px-0"
+                title="Refresh"
               >
                 <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Button
                 variant={autoRefresh ? "default" : "outline"}
                 size="sm"
                 onClick={() => setAutoRefresh((v) => !v)}
-                className="h-9 min-w-11 px-2 font-mono text-[11px]"
+                className="h-8 min-w-9 px-1.5 font-mono text-[10px]"
+                title="Auto-refresh"
               >
                 {autoRefresh ? "60s" : "Off"}
               </Button>
+              {!quiet && (
+                <a
+                  href={sentinelFocusUrl(nodeId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden h-8 items-center gap-1 rounded-md border border-accent/35 bg-accent/10 px-2 text-[10px] font-semibold text-accent hover:bg-accent/20 sm:inline-flex"
+                  title="Open in Sun-Earth-Sentinel"
+                >
+                  SES
+                  <ExternalLink className="size-2.5" />
+                </a>
+              )}
             </div>
           </div>
 
-          {/* R2: node · window · filters */}
-          <div className="flex flex-wrap items-center gap-1.5">
+          {/* Row 2: node · window · filters only */}
+          <div className="flex flex-wrap items-center gap-1">
             <div className="flex rounded-md border border-border p-0.5">
               {nodes.map((n) => (
                 <button
@@ -367,13 +364,13 @@ export function MonitorApp({ initial }: Props) {
                     else if (maxDepthKm == null) setMaxDepthKm(8);
                   }}
                   className={cn(
-                    "min-h-9 rounded px-2.5 text-xs font-medium transition-colors",
+                    "min-h-7 rounded px-2 text-[11px] font-medium transition-colors",
                     nodeId === n.id
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
                 >
-                  <span className="font-mono text-[10px] opacity-70">#{n.networkOrder}</span>{" "}
+                  <span className="font-mono text-[9px] opacity-70">#{n.networkOrder}</span>{" "}
                   {n.code}
                 </button>
               ))}
@@ -386,7 +383,7 @@ export function MonitorApp({ initial }: Props) {
                   type="button"
                   onClick={() => setWindowKey(w.key)}
                   className={cn(
-                    "min-h-9 min-w-10 rounded-md px-2 font-mono text-xs tabular-nums transition-colors",
+                    "min-h-7 min-w-8 rounded-md px-1.5 font-mono text-[11px] tabular-nums transition-colors",
                     windowKey === w.key
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:bg-secondary",
@@ -401,14 +398,14 @@ export function MonitorApp({ initial }: Props) {
               type="button"
               onClick={() => setFiltersOpen((v) => !v)}
               className={cn(
-                "inline-flex min-h-9 items-center gap-1 rounded-md border px-2.5 text-xs font-medium",
+                "inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium",
                 filtersOpen || filterActive
                   ? "border-accent/40 bg-accent/10 text-accent"
                   : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
               )}
             >
-              <SlidersHorizontal className="size-3.5" />
-              Filters
+              <SlidersHorizontal className="size-3" />
+              <span className="hidden xs:inline sm:inline">Filters</span>
               {filterActive && (
                 <span className="font-mono text-[10px]">
                   {minMag > 0 ? `M≥${minMag}` : ""}
@@ -418,13 +415,25 @@ export function MonitorApp({ initial }: Props) {
                 </span>
               )}
               <ChevronDown
-                className={cn("size-3.5 opacity-70 transition-transform", filtersOpen && "rotate-180")}
+                className={cn("size-3 opacity-70 transition-transform", filtersOpen && "rotate-180")}
               />
             </button>
+
+            {!quiet && (
+              <a
+                href={companionBoardUrl(nodeId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto hidden min-h-7 items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground lg:inline-flex"
+              >
+                {companionBoardLabel(nodeId)}
+                <ExternalLink className="size-2.5 opacity-70" />
+              </a>
+            )}
           </div>
 
           {filtersOpen && (
-            <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/25 px-2.5 py-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex flex-col gap-1.5 rounded-md border border-border bg-secondary/25 px-2 py-1.5 sm:flex-row sm:flex-wrap sm:items-center">
               <div className="flex flex-wrap items-center gap-1">
                 <span className="mr-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                   Min M
@@ -435,7 +444,7 @@ export function MonitorApp({ initial }: Props) {
                     type="button"
                     onClick={() => setMinMag(m)}
                     className={cn(
-                      "min-h-9 min-w-9 rounded border px-2 font-mono text-xs tabular-nums",
+                      "min-h-7 min-w-8 rounded border px-1.5 font-mono text-[11px] tabular-nums",
                       minMag === m
                         ? "border-fg/30 bg-muted text-foreground"
                         : "border-border text-muted-foreground hover:bg-card",
@@ -456,7 +465,7 @@ export function MonitorApp({ initial }: Props) {
                       type="button"
                       onClick={() => setMaxDepthKm(g.km)}
                       className={cn(
-                        "min-h-9 rounded border px-2 font-mono text-xs tabular-nums",
+                        "min-h-7 rounded border px-1.5 font-mono text-[11px] tabular-nums",
                         maxDepthKm === g.km
                           ? "border-fg/30 bg-muted text-foreground"
                           : "border-border text-muted-foreground hover:bg-card",
@@ -467,62 +476,12 @@ export function MonitorApp({ initial }: Props) {
                   ))}
                 </div>
               )}
-              {!quiet && (
-                <p className="text-[10px] text-muted-foreground sm:ml-auto">
-                  dragon {authority.sesDragonId}
-                </p>
-              )}
             </div>
           )}
-
-          <PulseStrip
-            continuum={continuum}
-            intensity={intensity}
-            newSincePoll={newSincePoll}
-            rate6h={swarm.rate6h}
-          />
         </div>
       </header>
 
-      {/* SES network handoff — Sentinel ↔ boards */}
-      <div className="border-b border-border bg-secondary/30">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-5">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            <Globe2 className="size-3.5 shrink-0 text-accent" />
-            <span className="font-medium text-foreground">
-              Sun Earth Sentinel · node #{node.networkOrder}
-            </span>
-            <span className="hidden sm:inline">· dragon <code className="font-mono text-[10px]">{authority.sesDragonId}</code></span>
-            {fromSes && (
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                From SES
-              </Badge>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <a
-              href={sentinelFocusUrl(nodeId)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 text-xs font-semibold text-accent hover:bg-accent/20"
-            >
-              Open in Sentinel
-              <ExternalLink className="size-3" />
-            </a>
-            <a
-              href={companionBoardUrl(nodeId)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
-              {companionBoardLabel(nodeId)}
-              <ExternalLink className="size-3 opacity-70" />
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <main className="mx-auto max-w-[1400px] min-w-0 overflow-x-hidden px-3 py-2 sm:px-5 sm:py-3">
+      <main className="mx-auto max-w-[1400px] min-w-0 overflow-x-hidden px-2 py-1.5 sm:px-4 sm:py-2">
         {loading && events.length === 0 && (
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground">
             <RefreshCw className="size-3.5 animate-spin" />
@@ -530,36 +489,34 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
-        {/* 4 primary KPIs — denser when map is open */}
-        <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
-          <Kpi
-            label="Events"
-            value={String(data?.count ?? events.length)}
-            sub={windowKey}
-            compact={tab === "map"}
-          />
-          <Kpi
-            label="Largest"
-            value={largest ? `M${formatMag(largest.magnitude)}` : "—"}
-            sub={largest ? formatRelativeTime(largest.time) : "—"}
-            danger={!!largest && magValue(largest.magnitude) >= 4}
-            compact={tab === "map"}
-          />
-          <Kpi
-            label="1h / 6h"
-            value={`${swarm.rate1h} / ${swarm.rate6h}`}
-            sub={`${(swarm.shallowFraction * 100).toFixed(0)}% shallow`}
-            warn={!!swarm.active}
-            compact={tab === "map"}
-          />
-          <Kpi
-            label="Mean Z"
-            value={events.length ? `${swarm.meanDepthKm.toFixed(1)} km` : "—"}
-            sub={swarm.active ? "swarm on" : `${swarm.clusters?.length ?? 0} clusters`}
-            warn={!!swarm.active}
-            compact={tab === "map"}
-          />
-        </section>
+        {/* KPIs only off map — pulse strip covers EII/rate on map tab */}
+        {tab !== "map" && (
+          <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
+            <Kpi
+              label="Events"
+              value={String(data?.count ?? events.length)}
+              sub={windowKey}
+            />
+            <Kpi
+              label="Largest"
+              value={largest ? `M${formatMag(largest.magnitude)}` : "—"}
+              sub={largest ? formatRelativeTime(largest.time) : "—"}
+              danger={!!largest && magValue(largest.magnitude) >= 4}
+            />
+            <Kpi
+              label="1h / 6h"
+              value={`${swarm.rate1h} / ${swarm.rate6h}`}
+              sub={`${(swarm.shallowFraction * 100).toFixed(0)}% shallow`}
+              warn={!!swarm.active}
+            />
+            <Kpi
+              label="Mean Z"
+              value={events.length ? `${swarm.meanDepthKm.toFixed(1)} km` : "—"}
+              sub={swarm.active ? "swarm on" : `${swarm.clusters?.length ?? 0} clusters`}
+              warn={!!swarm.active}
+            />
+          </section>
+        )}
 
         {lastError && (
           <div className="mb-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-sm text-destructive">
@@ -616,15 +573,20 @@ export function MonitorApp({ initial }: Props) {
 
         {tab === "map" && (
           <div className="flex flex-col gap-2">
-            <Card className="overflow-hidden">
-              <CardHeader className="flex-row items-center justify-between space-y-0 px-2 py-1.5 sm:px-3">
+            <Card className="overflow-hidden border-0 shadow-none sm:border sm:shadow-sm">
+              <CardHeader className="flex-row items-center justify-between space-y-0 px-1 py-1 sm:px-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <CardTitle className="text-sm">Map</CardTitle>
+                  <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                    {events.length.toLocaleString()} · {windowKey}
+                  </span>
                   {largest && magValue(largest.magnitude) >= 3.5 && (
                     <span className="truncate font-mono text-[10px] text-destructive">
                       Peak M{formatMag(largest.magnitude)} · {formatRelativeTime(largest.time)}
                     </span>
                   )}
+                  <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
+                    {swarm.rate1h}/{swarm.rate6h}/6h · z̄ {events.length ? swarm.meanDepthKm.toFixed(1) : "—"} km
+                  </span>
                 </div>
                 <div className="flex gap-0.5">
                   {(["time", "depth", "mag"] as MapColorMode[]).map((m) => (
@@ -633,7 +595,7 @@ export function MonitorApp({ initial }: Props) {
                       type="button"
                       onClick={() => setColorMode(m)}
                       className={cn(
-                        "rounded px-2 py-1 text-[10px] uppercase",
+                        "rounded px-1.5 py-0.5 text-[10px] uppercase",
                         colorMode === m
                           ? "bg-muted font-medium text-foreground"
                           : "text-muted-foreground hover:bg-secondary",
@@ -644,8 +606,8 @@ export function MonitorApp({ initial }: Props) {
                   ))}
                 </div>
               </CardHeader>
-              <CardContent className="p-1.5 pt-0 sm:p-2 sm:pt-0">
-                <div className="h-[calc(100dvh-13.5rem)] min-h-[320px] max-h-[780px]">
+              <CardContent className="p-0 sm:p-1 sm:pt-0">
+                <div className="h-[calc(100dvh-8.5rem)] min-h-[340px] max-h-none">
                   <OsmEpicenterMap
                     node={node}
                     events={events}

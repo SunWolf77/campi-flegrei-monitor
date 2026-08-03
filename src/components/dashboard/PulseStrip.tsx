@@ -11,7 +11,7 @@ type Props = {
   className?: string;
 };
 
-/** Compact global pulse — one scan line, always visible. */
+/** Compact global pulse — one scan line, always visible in header. */
 export function PulseStrip({
   continuum: C,
   intensity,
@@ -22,15 +22,12 @@ export function PulseStrip({
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 overflow-x-auto rounded-md border border-accent/25 bg-accent/5 px-2 py-1.5 text-[11px]",
+        "flex items-center gap-1 overflow-x-auto text-[11px]",
         className,
       )}
       role="status"
       aria-label="Live pulse strip"
     >
-      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-widest text-accent/80">
-        Pulse
-      </span>
       <Pill
         label="EII"
         value={C.eii.toFixed(2)}
@@ -68,8 +65,8 @@ export function PulseStrip({
           +{newSincePoll}
         </Badge>
       )}
-      <span className="ml-auto hidden shrink-0 font-mono text-[10px] text-muted-foreground md:inline">
-        base {C.eiiBase.toFixed(2)} · CCI {C.cci.toFixed(2)} · Kp {C.kp.toFixed(1)}
+      <span className="ml-auto hidden shrink-0 font-mono text-[10px] text-muted-foreground xl:inline">
+        CCI {C.cci.toFixed(2)} · Kp {C.kp.toFixed(1)}
       </span>
     </div>
   );
@@ -89,17 +86,16 @@ function Pill({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5",
+        "inline-flex h-5 shrink-0 items-center gap-0.5 rounded border px-1.5 text-[10px] leading-none",
+        mono && "font-mono tabular-nums",
         tone === "critical" && "border-destructive/40 bg-destructive/10 text-destructive",
         tone === "warn" && "border-warn/40 bg-warn/10 text-warn",
         tone === "accent" && "border-accent/40 bg-accent/10 text-accent",
-        tone === "muted" && "border-border/80 bg-card/80 text-foreground",
+        tone === "muted" && "border-border bg-card text-foreground",
       )}
     >
       <span className="text-[9px] font-medium uppercase tracking-wide opacity-60">{label}</span>
-      <span className={cn("text-[11px] font-semibold", mono && "font-mono tabular-nums")}>
-        {value}
-      </span>
+      <span className={cn("font-semibold", mono && "font-mono tabular-nums")}>{value}</span>
     </span>
   );
 }

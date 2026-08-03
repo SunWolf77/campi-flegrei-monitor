@@ -267,19 +267,16 @@ export function OsmEpicenterMap({
         )}
       </div>
 
-      {/* Top-right stack: GOSSIP + event count (zoom is bottom-right) */}
-      <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1.5">
+      {/* Top-right: official map only (event count lives in card chrome) */}
+      <div className="absolute top-2 right-2 z-10">
         <a
           href={officialUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card/95 px-2 text-[11px] font-medium text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-muted"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card/95 px-2 text-[10px] font-medium text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-muted"
         >
-          GOSSIP map
+          GOSSIP
         </a>
-        <div className="rounded-md border border-border/80 bg-card/95 px-2 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground shadow-sm backdrop-blur-sm">
-          {events.length.toLocaleString()} events
-        </div>
       </div>
     </div>
   );
