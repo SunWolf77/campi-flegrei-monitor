@@ -20,13 +20,21 @@ export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
     provider: "gossip",
     fallbackProvider: "ingv",
     bbox: {
+      // Catalog query box (dense GOSSIP microseismicity)
       minLat: 40.78,
       maxLat: 40.90,
       minLon: 14.05,
       maxLon: 14.22,
     },
     center: { lat: 40.827, lon: 14.139 },
-    mapPad: 0.02,
+    mapPad: 0.01,
+    /** Tighter initial map frame (caldera) — does not shrink catalog bbox */
+    mapView: {
+      minLat: 40.795,
+      maxLat: 40.855,
+      minLon: 14.09,
+      maxLon: 14.19,
+    },
     volcano: {
       name: "Campi Flegrei caldera",
       type: "Restless caldera / resurgent caldera",

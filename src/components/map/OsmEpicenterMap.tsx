@@ -29,8 +29,7 @@ type Props = {
 
 /**
  * Real basemap (OpenStreetMap) + INGV-style epicenter circles.
- * Mirrors the GOSSIP "Localizzazioni Sismiche" presentation:
- * size ∝ magnitude, colour by event age (default) / mag / depth.
+ * Viewport locks to focus-node bbox (not outlier events) so CF stays caldera-tight.
  */
 export function OsmEpicenterMap({
   node,
@@ -43,7 +42,6 @@ export function OsmEpicenterMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerRef = useRef<import("leaflet").LayerGroup | null>(null);
-  const fittedRef = useRef(false);
   const selectedRef = useRef(selectedId);
   const onSelectRef = useRef(onSelect);
   const eventsRef = useRef(events);
@@ -123,24 +121,12 @@ export function OsmEpicenterMap({
 
       circle.addTo(group);
     }
-
-    if (evs.length > 0 && !fittedRef.current) {
-      const lats = evs.map((e) => e.latitude);
-      const lons = evs.map((e) => e.longitude);
-      const pad = 0.012;
-      const bounds = L.latLngBounds(
-        [Math.min(...lats) - pad, Math.min(...lons) - pad],
-        [Math.max(...lats) + pad, Math.max(...lons) + pad],
-      );
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14, animate: false });
-      fittedRef.current = true;
-    }
+    // Viewport stays on node bbox — do not fitBounds to outliers
   }
 
   // Init map once per node
   useEffect(() => {
     let cancelled = false;
-    fittedRef.current = false;
 
     async function init() {
       const L = await import("leaflet");
@@ -163,10 +149,11 @@ export function OsmEpicenterMap({
       }
 
       const map = L.map(containerRef.current, {
-        zoomControl: true,
+        zoomControl: false, // custom position — avoid top-left overlay clash
         attributionControl: true,
         preferCanvas: true,
       });
+      L.control.zoom({ position: "bottomright" }).addTo(map);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 18,
@@ -174,11 +161,20 @@ export function OsmEpicenterMap({
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · catalog INGV-OV GOSSIP / FDSN',
       }).addTo(map);
 
+      // Focus-node viewport — prefer mapView (tight CF caldera); never fit to outliers
+      const view = node.mapView ?? node.bbox;
+      const pad = node.mapPad ?? 0.02;
       const bounds = L.latLngBounds(
-        [node.bbox.minLat, node.bbox.minLon],
-        [node.bbox.maxLat, node.bbox.maxLon],
+        [view.minLat - pad, view.minLon - pad],
+        [view.maxLat + pad, view.maxLon + pad],
       );
-      map.fitBounds(bounds, { padding: [24, 24] });
+      // CF: caldera fills frame; TK needs more room
+      const maxZoom = node.id === "campi-flegrei" ? 13 : 8;
+      map.fitBounds(bounds, {
+        padding: [8, 8],
+        maxZoom,
+        animate: false,
+      });
 
       if (node.volcano?.outline && node.volcano.outline.length > 2) {
         const ring = node.volcano.outline.map(
@@ -197,7 +193,6 @@ export function OsmEpicenterMap({
       mapRef.current = map;
       map.on("click", () => onSelectRef.current?.(null));
 
-      // Invalidate size after layout (card animation / flex)
       window.setTimeout(() => {
         map.invalidateSize();
         void redrawMarkers();
@@ -229,6 +224,17 @@ export function OsmEpicenterMap({
     mapRef.current.panTo([ev.latitude, ev.longitude], { animate: true });
   }, [selectedId, events]);
 
+  // Keep map sized when parent flex/height changes
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      mapRef.current?.invalidateSize({ animate: false });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const officialUrl =
     node.volcano?.officialMapUrl ?? gossipOfficialMapUrl(new Date().getUTCFullYear());
 
@@ -236,21 +242,22 @@ export function OsmEpicenterMap({
     <div className={cn("relative h-full w-full overflow-hidden rounded-lg", className)}>
       <div ref={containerRef} className="absolute inset-0 z-0 bg-[#d8e0e8]" />
 
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[210px] rounded-md border border-border/80 bg-card/95 px-2.5 py-2 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
-        <div className="mb-1 font-medium text-foreground">
+      {/* Legend — bottom-left, clear of zoom (bottom-right) */}
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[200px] rounded-md border border-border/80 bg-card/95 px-2 py-1.5 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
+        <div className="mb-0.5 font-medium text-foreground">
           {colorMode === "time"
-            ? "Event age (window)"
+            ? "Event age"
             : colorMode === "magnitude"
               ? "Magnitude"
               : "Depth"}
         </div>
         {colorMode === "time" ? (
           <div className="flex items-center gap-1">
-            <span className="size-2.5 rounded-full" style={{ background: "#e53935" }} />
-            <span className="size-2.5 rounded-full" style={{ background: "#fb8c00" }} />
-            <span className="size-2.5 rounded-full" style={{ background: "#fdd835" }} />
-            <span className="size-2.5 rounded-full" style={{ background: "#9ccc65" }} />
-            <span className="size-2.5 rounded-full" style={{ background: "#43a047" }} />
+            <span className="size-2 rounded-full" style={{ background: "#e53935" }} />
+            <span className="size-2 rounded-full" style={{ background: "#fb8c00" }} />
+            <span className="size-2 rounded-full" style={{ background: "#fdd835" }} />
+            <span className="size-2 rounded-full" style={{ background: "#9ccc65" }} />
+            <span className="size-2 rounded-full" style={{ background: "#43a047" }} />
             <span className="ml-1">new → old</span>
           </div>
         ) : colorMode === "magnitude" ? (
@@ -258,30 +265,21 @@ export function OsmEpicenterMap({
         ) : (
           <span>Warm = shallow · cool = deeper</span>
         )}
-        <div className="mt-1.5 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1">
-            <span className="size-1.5 rounded-full bg-foreground/40" /> ~0
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2.5 rounded-full bg-foreground/40" /> ~2
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="size-3.5 rounded-full bg-foreground/40" /> ~4
-          </span>
-        </div>
       </div>
 
-      <a
-        href={officialUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="absolute top-3 right-3 z-10 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-card/95 px-2.5 text-[11px] font-medium text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-muted"
-      >
-        Open INGV GOSSIP map
-      </a>
-
-      <div className="pointer-events-none absolute top-3 left-3 z-10 rounded-md border border-border/80 bg-card/95 px-2 py-1 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
-        {events.length.toLocaleString()} events · OSM basemap
+      {/* Top-right stack: GOSSIP + event count (zoom is bottom-right) */}
+      <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1.5">
+        <a
+          href={officialUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card/95 px-2 text-[11px] font-medium text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-muted"
+        >
+          GOSSIP map
+        </a>
+        <div className="rounded-md border border-border/80 bg-card/95 px-2 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground shadow-sm backdrop-blur-sm">
+          {events.length.toLocaleString()} events
+        </div>
       </div>
     </div>
   );

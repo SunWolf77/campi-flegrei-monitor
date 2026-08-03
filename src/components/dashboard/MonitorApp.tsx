@@ -522,46 +522,54 @@ export function MonitorApp({ initial }: Props) {
         </div>
       </div>
 
-      <main className="mx-auto max-w-[1400px] min-w-0 overflow-x-hidden px-3 py-3 sm:px-5 sm:py-4">
+      <main className="mx-auto max-w-[1400px] min-w-0 overflow-x-hidden px-3 py-2 sm:px-5 sm:py-3">
         {loading && events.length === 0 && (
-          <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground">
             <RefreshCw className="size-3.5 animate-spin" />
             Loading catalog…
           </div>
         )}
 
-        {/* 4 primary KPIs only */}
-        <section className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-          <Kpi label="Events" value={String(data?.count ?? events.length)} sub={windowKey} />
+        {/* 4 primary KPIs — denser when map is open */}
+        <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
+          <Kpi
+            label="Events"
+            value={String(data?.count ?? events.length)}
+            sub={windowKey}
+            compact={tab === "map"}
+          />
           <Kpi
             label="Largest"
             value={largest ? `M${formatMag(largest.magnitude)}` : "—"}
             sub={largest ? formatRelativeTime(largest.time) : "—"}
             danger={!!largest && magValue(largest.magnitude) >= 4}
+            compact={tab === "map"}
           />
           <Kpi
             label="1h / 6h"
             value={`${swarm.rate1h} / ${swarm.rate6h}`}
             sub={`${(swarm.shallowFraction * 100).toFixed(0)}% shallow`}
             warn={!!swarm.active}
+            compact={tab === "map"}
           />
           <Kpi
             label="Mean Z"
             value={events.length ? `${swarm.meanDepthKm.toFixed(1)} km` : "—"}
             sub={swarm.active ? "swarm on" : `${swarm.clusters?.length ?? 0} clusters`}
             warn={!!swarm.active}
+            compact={tab === "map"}
           />
         </section>
 
         {lastError && (
-          <div className="mb-3 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="mb-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             <div className="min-w-0 text-xs">{lastError}</div>
           </div>
         )}
 
-        {largest && magValue(largest.magnitude) >= 3.5 && (
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs">
+        {largest && magValue(largest.magnitude) >= 3.5 && tab !== "map" && (
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-1.5 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <AlertTriangle className="size-3.5 text-destructive" />
               <span className="font-medium">
@@ -584,7 +592,7 @@ export function MonitorApp({ initial }: Props) {
         )}
 
         {/* Tabs — primary navigation */}
-        <div className="mb-3 flex gap-0.5 overflow-x-auto border-b border-border pb-0">
+        <div className="mb-2 flex gap-0.5 overflow-x-auto border-b border-border pb-0">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
@@ -593,7 +601,7 @@ export function MonitorApp({ initial }: Props) {
                 type="button"
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  "inline-flex min-h-10 shrink-0 items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors",
+                  "inline-flex min-h-9 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-medium transition-colors sm:px-3",
                   tab === t.key
                     ? "border-accent text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",
@@ -607,15 +615,17 @@ export function MonitorApp({ initial }: Props) {
         </div>
 
         {tab === "map" && (
-          <div
-            className={cn(
-              "grid gap-3",
-              quiet ? "lg:grid-cols-1" : "lg:grid-cols-[1.6fr_1fr]",
-            )}
-          >
+          <div className="flex flex-col gap-2">
             <Card className="overflow-hidden">
-              <CardHeader className="flex-row items-center justify-between space-y-0 px-3 py-2">
-                <CardTitle className="text-sm">Map</CardTitle>
+              <CardHeader className="flex-row items-center justify-between space-y-0 px-2 py-1.5 sm:px-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <CardTitle className="text-sm">Map</CardTitle>
+                  {largest && magValue(largest.magnitude) >= 3.5 && (
+                    <span className="truncate font-mono text-[10px] text-destructive">
+                      Peak M{formatMag(largest.magnitude)} · {formatRelativeTime(largest.time)}
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-0.5">
                   {(["time", "depth", "mag"] as MapColorMode[]).map((m) => (
                     <button
@@ -634,8 +644,8 @@ export function MonitorApp({ initial }: Props) {
                   ))}
                 </div>
               </CardHeader>
-              <CardContent className="p-2 pt-0 sm:p-3 sm:pt-0">
-                <div className="h-[min(64vh,560px)] min-h-[300px]">
+              <CardContent className="p-1.5 pt-0 sm:p-2 sm:pt-0">
+                <div className="h-[calc(100dvh-13.5rem)] min-h-[320px] max-h-[780px]">
                   <OsmEpicenterMap
                     node={node}
                     events={events}
@@ -646,7 +656,16 @@ export function MonitorApp({ initial }: Props) {
                 </div>
               </CardContent>
             </Card>
-            {!quiet && <ObservationLinks nodeId={nodeId} />}
+            {!quiet && (
+              <details className="rounded-lg border border-border bg-card">
+                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Observation links
+                </summary>
+                <div className="border-t border-border p-2">
+                  <ObservationLinks nodeId={nodeId} />
+                </div>
+              </details>
+            )}
           </div>
         )}
 
@@ -767,17 +786,20 @@ function Kpi({
   sub,
   danger,
   warn,
+  compact,
 }: {
   label: string;
   value: string;
   sub?: string;
   danger?: boolean;
   warn?: boolean;
+  compact?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "rounded-md border px-2.5 py-1.5",
+        "rounded-md border",
+        compact ? "px-1.5 py-1 sm:px-2" : "px-2.5 py-1.5",
         danger && "border-destructive/40 bg-destructive/5",
         warn && !danger && "border-warn/35 bg-warn/5",
         !danger && !warn && "border-border bg-card",
@@ -786,10 +808,20 @@ function Kpi({
       <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <div className="font-mono text-base font-semibold tabular-nums leading-tight sm:text-lg">
+      <div
+        className={cn(
+          "font-mono font-semibold tabular-nums leading-tight",
+          compact ? "text-sm sm:text-base" : "text-base sm:text-lg",
+        )}
+      >
         {value}
       </div>
-      {sub && <div className="truncate text-[10px] text-muted-foreground">{sub}</div>}
+      {sub && !compact && (
+        <div className="truncate text-[10px] text-muted-foreground">{sub}</div>
+      )}
+      {sub && compact && (
+        <div className="hidden truncate text-[9px] text-muted-foreground sm:block">{sub}</div>
+      )}
     </div>
   );
 }

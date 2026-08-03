@@ -70,6 +70,8 @@ export type FocusNode = {
   /** Fallback provider when primary fails (same authority family only). */
   fallbackProvider?: SeismicProviderId;
   bbox: BBox;
+  /** Optional tighter initial map frame (does not affect catalog query bbox). */
+  mapView?: BBox;
   center: GeoPoint;
   /** Map zoom / extent padding in degrees */
   mapPad: number;
