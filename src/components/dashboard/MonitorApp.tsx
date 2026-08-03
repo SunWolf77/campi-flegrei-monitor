@@ -62,6 +62,7 @@ import {
 import { mapFillHeightPx, preferCollapsedChrome } from "@/lib/ui/breakpoints";
 import { useViewport } from "@/lib/ui/useViewport";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ShareMenu } from "@/components/ui/ShareMenu";
 import { cn, formatDateTime, formatMag, formatRelativeTime, magValue } from "@/lib/utils";
 
 type TabKey = "map" | "depth" | "timeline" | "swarm" | "detective" | "catalog" | "feeds";
@@ -105,10 +106,22 @@ export function MonitorApp({ initial }: Props) {
   const [data, setData] = useState<CatalogPayload>(safeInitial);
   const handoff = useMemo(() => parseSesHandoff(), []);
   const [fromSes] = useState(handoff.fromSes);
-  const [nodeId, setNodeId] = useState<FocusNodeId>(
-    handoff.focusFromQuery ?? safeInitial.nodeId ?? "campi-flegrei",
-  );
-  const [windowKey, setWindowKey] = useState<WindowKey>(safeInitial.window?.key ?? "7d");
+  const [nodeId, setNodeId] = useState<FocusNodeId>(() => {
+    if (typeof window !== "undefined") {
+      const n = new URLSearchParams(window.location.search).get("node");
+      if (n === "tonga" || n === "tk" || n === "tonga-kermadec") return "tonga-kermadec";
+      if (n === "cf" || n === "campi" || n === "campi-flegrei" || n === "mediterranean")
+        return "campi-flegrei";
+    }
+    return handoff.focusFromQuery ?? safeInitial.nodeId ?? "campi-flegrei";
+  });
+  const [windowKey, setWindowKey] = useState<WindowKey>(() => {
+    if (typeof window !== "undefined") {
+      const w = new URLSearchParams(window.location.search).get("window");
+      if (w === "24h" || w === "48h" || w === "7d" || w === "30d" || w === "ytd") return w;
+    }
+    return safeInitial.window?.key ?? "7d";
+  });
   const [minMag, setMinMag] = useState(0);
   const [maxDepthKm, setMaxDepthKm] = useState<number | null>(8);
   const [tab, setTab] = useState<TabKey>("map");
@@ -357,6 +370,17 @@ export function MonitorApp({ initial }: Props) {
                   <ChevronUp className="size-3.5" />
                 )}
               </Button>
+              <ShareMenu
+                ctx={{
+                  nodeId,
+                  windowKey,
+                  eii: continuum.eii,
+                  rpam: continuum.rpam,
+                  rate6h: swarm.rate6h,
+                  eventCount: events.length,
+                  largestMag: largest ? magValue(largest.magnitude) : null,
+                }}
+              />
               {!headerCollapsed && <ThemeToggle />}
               <Button
                 variant={quiet ? "default" : "ghost"}
