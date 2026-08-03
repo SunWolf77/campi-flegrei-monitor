@@ -295,3 +295,31 @@ html.light .leaflet-container {
 .supt-node-popup .leaflet-popup-tip {
   background: #ffffff !important;
 }
+
+/* —— Smooth expand / collapse (node card, reading, filters) ——
+ * grid 0fr→1fr avoids measuring scrollHeight; respects reduced-motion.
+ */
+.ui-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease;
+}
+.ui-expand-open {
+  grid-template-rows: 1fr;
+}
+.ui-expand-inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.ui-expand-open > .ui-expand-inner {
+  opacity: 1;
+  transition-delay: 40ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-expand,
+  .ui-expand-inner {
+    transition: none !important;
+  }
+}

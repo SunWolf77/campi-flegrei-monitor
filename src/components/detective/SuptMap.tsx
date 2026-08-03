@@ -5,6 +5,7 @@ import type { FracturePlane, StressNode, Lineament, MigrationStep } from "@/lib/
 import { leafletMagRadius, timeAgeColor, eventAge01 } from "@/lib/seismic/colors";
 import { magValue, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { basemapTileOptions, basemapTileUrl } from "@/lib/map/tiles";
 
 /** Distinct SUPT layer palette — nodes ≠ fractures */
 export const SUPT_LAYER_COLORS = {
@@ -394,12 +395,15 @@ export function SuptMap({
         zoomControl: false,
         preferCanvas: true,
         attributionControl: true,
+        fadeAnimation: true,
+        zoomAnimation: true,
+        markerZoomAnimation: false,
       });
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 18,
-        attribution: "&copy; OpenStreetMap · SUPT overlay SES",
+      L.tileLayer(basemapTileUrl("voyager"), {
+        ...basemapTileOptions("voyager"),
+        attribution: basemapTileOptions("voyager").attribution + " · SUPT overlay SES",
       }).addTo(map);
 
       const view = node.mapView ?? node.bbox;

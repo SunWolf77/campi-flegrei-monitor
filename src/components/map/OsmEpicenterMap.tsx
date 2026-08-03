@@ -15,6 +15,7 @@ import {
   cn,
 } from "@/lib/utils";
 import { gossipOfficialMapUrl } from "@/lib/seismic/providers/gossip";
+import { basemapTileOptions, basemapTileUrl } from "@/lib/map/tiles";
 
 export type MapColorMode = "time" | "magnitude" | "depth";
 
@@ -149,16 +150,21 @@ export function OsmEpicenterMap({
       }
 
       const map = L.map(containerRef.current, {
-        zoomControl: false, // custom position — avoid top-left overlay clash
+        zoomControl: false,
         attributionControl: true,
         preferCanvas: true,
+        // smoother pan: don't re-layout markers every frame mid-gesture
+        fadeAnimation: true,
+        zoomAnimation: true,
+        markerZoomAnimation: false,
       });
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 18,
+      L.tileLayer(basemapTileUrl("voyager"), {
+        ...basemapTileOptions("voyager"),
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · catalog INGV-OV GOSSIP / FDSN',
+          basemapTileOptions("voyager").attribution +
+          " · catalog INGV-OV GOSSIP / FDSN",
       }).addTo(map);
 
       // Focus-node viewport — prefer mapView (tight CF caldera); never fit to outliers

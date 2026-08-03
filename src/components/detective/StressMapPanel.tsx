@@ -112,7 +112,7 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
         />
       )}
 
-      {!fs && selected && (
+            {!fs && selected && (
         <SelectedNodeCard
           sn={selected}
           open={nodeOpen}
@@ -178,11 +178,10 @@ function SelectedNodeCard({
 
   return (
     <div className="rounded-lg border border-border bg-card">
-      {/* Collapsed strip — always visible, one line */}
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] hover:bg-secondary/40"
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors hover:bg-secondary/40"
         aria-expanded={open}
       >
         <span className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-foreground bg-[#ffb300] font-mono text-[10px] font-bold text-black">
@@ -208,58 +207,57 @@ function SelectedNodeCard({
         </span>
       </button>
 
-      {open && (
-        <div className="border-t border-border px-3 py-2 text-[11px]">
-          <div className="flex flex-wrap items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="leading-relaxed text-foreground/90">{sn.interpretation}</p>
-              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10px] sm:grid-cols-4">
-                <Stat k="Depth" v={`${sn.depthKm.toFixed(2)} km`} />
-                <Stat k="Events" v={String(sn.eventCount)} />
-                <Stat k="Last 6h" v={String(sn.recentCount6h)} />
-                <Stat k="Max M" v={`M${sn.maxMag.toFixed(1)}`} />
-                <Stat k="Mean M" v={sn.meanMag.toFixed(2)} />
-                <Stat k="Energy dens." v={sn.energyDensity.toFixed(2)} />
-                <Stat k="Shallowness" v={`${(sn.shallowness * 100).toFixed(0)}%`} />
-                <Stat
-                  k="Local b"
-                  v={sn.localBValue != null ? sn.localBValue.toFixed(2) : "—"}
-                />
-              </div>
-              <p className="mt-1.5 text-[10px] text-muted-foreground">
-                {near} · {sn.location.lat.toFixed(4)}N {sn.location.lon.toFixed(4)}E
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                {peers.slice(0, 8).map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => onPick(p.id)}
-                    className={cn(
-                      "min-h-7 min-w-7 rounded-full border font-mono text-[10px] font-bold",
-                      p.id === sn.id
-                        ? "border-foreground bg-[#ffb300] text-black"
-                        : "border-border bg-card text-muted-foreground hover:border-accent",
-                    )}
-                  >
-                    {p.rank}
-                  </button>
-                ))}
+      <div className={cn("ui-expand", open && "ui-expand-open")}>
+        <div className="ui-expand-inner">
+          <div className="border-t border-border px-3 py-2 text-[11px]">
+            <p className="leading-relaxed text-foreground/90">{sn.interpretation}</p>
+            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10px] sm:grid-cols-4">
+              <Stat k="Depth" v={`${sn.depthKm.toFixed(2)} km`} />
+              <Stat k="Events" v={String(sn.eventCount)} />
+              <Stat k="Last 6h" v={String(sn.recentCount6h)} />
+              <Stat k="Max M" v={`M${sn.maxMag.toFixed(1)}`} />
+              <Stat k="Mean M" v={sn.meanMag.toFixed(2)} />
+              <Stat k="Energy dens." v={sn.energyDensity.toFixed(2)} />
+              <Stat k="Shallowness" v={`${(sn.shallowness * 100).toFixed(0)}%`} />
+              <Stat
+                k="Local b"
+                v={sn.localBValue != null ? sn.localBValue.toFixed(2) : "—"}
+              />
+            </div>
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              {near} · {sn.location.lat.toFixed(4)}N {sn.location.lon.toFixed(4)}E
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {peers.slice(0, 8).map((p) => (
                 <button
+                  key={p.id}
                   type="button"
-                  onClick={onClear}
-                  className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+                  onClick={() => onPick(p.id)}
+                  className={cn(
+                    "min-h-7 min-w-7 rounded-full border font-mono text-[10px] font-bold transition-transform active:scale-95",
+                    p.id === sn.id
+                      ? "border-foreground bg-[#ffb300] text-black"
+                      : "border-border bg-card text-muted-foreground hover:border-accent",
+                  )}
                 >
-                  Clear
+                  {p.rank}
                 </button>
-              </div>
+              ))}
+              <button
+                type="button"
+                onClick={onClear}
+                className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
+
 
 function Stat({ k, v }: { k: string; v: string }) {
   return (
