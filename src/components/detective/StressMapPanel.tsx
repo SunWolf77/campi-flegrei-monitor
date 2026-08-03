@@ -6,6 +6,7 @@ import { fetchSpaceWeather } from "@/lib/supt/kpServer";
 import { fetchSchumann } from "@/lib/supt/earthFeedsServer";
 import type { SpaceWeatherSnapshot } from "@/lib/supt/spaceWeather";
 import type { SchumannSnapshot } from "@/lib/supt/schumann";
+import type { StressNode } from "@/lib/seismic/supt";
 import { SuptMap } from "@/components/detective/SuptMap";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,15 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
 
   const top = report.fabric.stressNodes[0];
   const topPlane = report.fabric.planes[0];
+  const selected: StressNode | null =
+    report.fabric.stressNodes.find((n) => n.id === selectedNodeId) ?? null;
+
+  // Auto-select #1 on first fabric load so the card isn't empty
+  useEffect(() => {
+    if (!selectedNodeId && report.fabric.stressNodes[0]) {
+      setSelectedNodeId(report.fabric.stressNodes[0].id);
+    }
+  }, [report.fabric.stressNodes, selectedNodeId]);
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
@@ -101,6 +111,15 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
         />
       )}
 
+      {!fs && selected && (
+        <SelectedNodeCard
+          sn={selected}
+          onClear={() => setSelectedNodeId(null)}
+          peers={report.fabric.stressNodes}
+          onPick={setSelectedNodeId}
+        />
+      )}
+
       <div
         className={cn(!fs && "overflow-hidden rounded-lg border border-border")}
         style={!fs ? { height } : undefined}
@@ -119,6 +138,101 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
           onFullscreenChange={setFs}
         />
       </div>
+    </div>
+  );
+}
+
+function SelectedNodeCard({
+  sn,
+  onClear,
+  peers,
+  onPick,
+}: {
+  sn: StressNode;
+  onClear: () => void;
+  peers: StressNode[];
+  onPick: (id: string) => void;
+}) {
+  const priority =
+    sn.score >= 75 ? "HIGH" : sn.score >= 55 ? "MODERATE" : "SECONDARY";
+  const near =
+    sn.nearFractureId && sn.nearFractureDistKm != null
+      ? `${sn.nearFractureDistKm.toFixed(2)} km from fitted plane`
+      : "No close fracture plane in fabric";
+
+  return (
+    <div className="rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[11px]">
+      <div className="flex flex-wrap items-start gap-2">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-foreground bg-[#ffb300] font-mono text-[11px] font-bold text-black">
+          {sn.rank}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-foreground">
+              Stress node #{sn.rank}
+            </span>
+            <Badge
+              variant={
+                sn.score >= 75 ? "critical" : sn.score >= 55 ? "warn" : "outline"
+              }
+              className="h-5 text-[10px]"
+            >
+              {priority} · {sn.score}/100
+            </Badge>
+            <button
+              type="button"
+              onClick={onClear}
+              className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          </div>
+          <p className="mt-1 leading-relaxed text-foreground/90">{sn.interpretation}</p>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10px] sm:grid-cols-4">
+            <Stat k="Depth" v={`${sn.depthKm.toFixed(2)} km`} />
+            <Stat k="Events" v={String(sn.eventCount)} />
+            <Stat k="Last 6h" v={String(sn.recentCount6h)} />
+            <Stat k="Max M" v={`M${sn.maxMag.toFixed(1)}`} />
+            <Stat k="Mean M" v={sn.meanMag.toFixed(2)} />
+            <Stat k="Energy dens." v={sn.energyDensity.toFixed(2)} />
+            <Stat k="Shallowness" v={`${(sn.shallowness * 100).toFixed(0)}%`} />
+            <Stat
+              k="Local b"
+              v={sn.localBValue != null ? sn.localBValue.toFixed(2) : "—"}
+            />
+          </div>
+          <p className="mt-1.5 text-[10px] text-muted-foreground">
+            {near} · {sn.location.lat.toFixed(4)}N {sn.location.lon.toFixed(4)}E · click map
+            badge or rank below
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {peers.slice(0, 8).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onPick(p.id)}
+                className={cn(
+                  "min-h-7 min-w-7 rounded-full border font-mono text-[10px] font-bold",
+                  p.id === sn.id
+                    ? "border-foreground bg-[#ffb300] text-black"
+                    : "border-border bg-card text-muted-foreground hover:border-accent",
+                )}
+              >
+                {p.rank}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ k, v }: { k: string; v: string }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{k}</div>
+      <div className="font-semibold text-foreground">{v}</div>
     </div>
   );
 }
@@ -151,37 +265,32 @@ function ObservationalBrief({
       </p>
       <ul className="mt-1.5 list-inside list-disc space-y-1">
         <li>
-          <span className="text-foreground">Amber nodes</span> = density/energy/shallowness
-          scores ({nNodes} ranked). Highest score
-          {topScore != null ? ` (#1 = ${topScore})` : ""} marks where hypocentres pile up — a{" "}
-          <em>preferential zone</em> for continued activity in this window, not “the next
-          epicentre.”
+          <span className="text-foreground">Amber discs</span> = ranked density/energy zones (
+          {nNodes})
+          {topScore != null ? ` — #1 scores ${topScore}/100` : ""}. Click a disc for full
+          metrics (depth, rate, b-value, near-plane).
         </li>
         <li>
           <span className="text-foreground">Magenta lines</span> = PCA fracture planes (
-          {nPlanes}) — best-fit planar geometry through recent hypocentres
+          {nPlanes})
           {planeStrike != null
             ? ` (top strike ~${planeStrike.toFixed(0)}° / dip ~${planeDip?.toFixed(0)}°)`
             : ""}
-          . Where magenta crosses amber, fabric geometry and energy density coincide — that is
-          the “connect the dots” signal.
+          .
         </li>
         <li>
-          <span className="text-foreground">Blue ticks (σ⊥)</span> = map-projected normal to
-          strike; black = strike-parallel. Geometric axes from the plane fit — not a full stress
-          tensor / CMT.
+          <span className="text-foreground">Violet glow</span> = continuous stress-density field
+          (toggle in legend if too strong/weak).
         </li>
         <li>
           <span className="text-foreground">Teal path</span>
           {migrationAz
-            ? " = centroid migration through the window (swarm centre of mass over time)."
+            ? " = swarm centroid migration over the window."
             : " = migration (needs enough time bins)."}
         </li>
         <li>
-          Continuum EII {eii.toFixed(2)} · {rpam} co-registers space-weather / Schumann context.
-          SUPT residual timing is separate (SUPT tab). Together: <strong>where</strong> (fabric)
-          + <strong>how ordered</strong> (resonance) + <strong>how intense</strong> (EII) — still
-          observational pattern literacy, not civil-protection prediction.
+          Continuum EII {eii.toFixed(2)} · {rpam}. Fabric shows <strong>where</strong>; SUPT tab
+          shows <strong>how ordered</strong> — still observational, not prediction.
         </li>
       </ul>
     </div>

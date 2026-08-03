@@ -280,3 +280,18 @@ html.light .leaflet-container {
     display: none;
   }
 }
+
+/* SUPT stress node popup — always light card for table readability */
+.supt-node-popup .leaflet-popup-content-wrapper {
+  border-radius: 10px;
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  padding: 2px 0;
+}
+.supt-node-popup .leaflet-popup-content {
+  margin: 10px 12px;
+}
+.supt-node-popup .leaflet-popup-tip {
+  background: #ffffff !important;
+}

@@ -20,10 +20,10 @@ export const SUPT_LAYER_COLORS = {
   /** Migration — teal */
   migration: "#00838f",
   migrationEnd: "#26c6da",
-  /** Stress density field — violet haze (≠ amber nodes, ≠ magenta lines) */
-  fieldHot: "#7e57c2",
-  fieldMid: "#b39ddb",
-  fieldCool: "#d1c4e9",
+  /** Stress density field — strong violet haze (readable on OSM) */
+  fieldHot: "#5e35b1",
+  fieldMid: "#7e57c2",
+  fieldCool: "#9575cd",
   /** Principal axes */
   sigmaParallel: "#212121",
   sigmaNormal: "#1565c0",
@@ -205,13 +205,23 @@ export function SuptMap({
 
       // Stress density field (soft purple haze — not amber, not magenta)
       if (vis.field) {
+        // Two-pass haze: wide soft underlay + tighter core (readable on OSM)
         for (const cell of stressField) {
-          if (cell.intensity < 0.12) continue;
+          if (cell.intensity < 0.08) continue;
           L.circleMarker([cell.lat, cell.lon], {
-            radius: 7 + cell.intensity * 16,
+            radius: 14 + cell.intensity * 28,
             stroke: false,
             fillColor: fieldColor(cell.intensity),
-            fillOpacity: 0.08 + cell.intensity * 0.22,
+            fillOpacity: 0.14 + cell.intensity * 0.28,
+          }).addTo(group);
+        }
+        for (const cell of stressField) {
+          if (cell.intensity < 0.25) continue;
+          L.circleMarker([cell.lat, cell.lon], {
+            radius: 5 + cell.intensity * 12,
+            stroke: false,
+            fillColor: fieldColor(cell.intensity),
+            fillOpacity: 0.22 + cell.intensity * 0.35,
           }).addTo(group);
         }
       }
@@ -329,7 +339,7 @@ export function SuptMap({
       // Stress nodes — numbered AMBER BADGES (shape ≠ fracture lines)
       if (vis.nodes) stressNodes.forEach((sn) => {
         const sel = sn.id === selectedNodeId;
-        const size = sel ? 28 : 22;
+        const size = sel ? 30 : 24;
         const fill = sn.score >= 70 ? "#ff8f00" : sn.score >= 55 ? C.nodeFill : "#ffe082";
         const ring = sel ? C.nodeSel : "#1a1200";
         const icon = L.divIcon({
@@ -346,14 +356,19 @@ export function SuptMap({
         });
         const marker = L.marker([sn.location.lat, sn.location.lon], {
           icon,
-          zIndexOffset: 800,
+          zIndexOffset: 800 + (20 - sn.rank),
         });
-        marker.bindTooltip(
-          `<strong style="color:#e65100">● Stress node #${sn.rank}</strong> · score ${sn.score}<br/>` +
-            `${sn.depthKm.toFixed(1)} km · n=${sn.eventCount} · max M${sn.maxMag.toFixed(1)}<br/>` +
-            `<span style="opacity:.8">Ranked density/energy zone — not a forecast.</span>`,
-          { direction: "top" },
-        );
+        const tip =
+          `<div style="font:12px/1.35 ui-sans-serif,system-ui;min-width:200px">` +
+          `<strong style="color:#e65100">Stress node #${sn.rank}</strong>` +
+          ` <span style="opacity:.7">score ${sn.score}/100</span><br/>` +
+          `<span style="opacity:.85">${sn.depthKm.toFixed(1)} km · n=${sn.eventCount} · max M${sn.maxMag.toFixed(1)}</span>` +
+          `</div>`;
+        marker.bindTooltip(tip, { direction: "top", opacity: 0.96 });
+        marker.bindPopup(stressNodePopupHtml(sn), {
+          maxWidth: 320,
+          className: "supt-node-popup",
+        });
         marker.on("click", (e) => {
           L.DomEvent.stopPropagation(e);
           onSelectNode?.(sn.id);
@@ -588,7 +603,7 @@ export function SuptMap({
             onClick={() => toggleLayer("field")}
             glyph={<GlyphBlob color={C.fieldMid} />}
             label="Stress field"
-            hint="violet haze"
+            hint="violet density glow"
           />
           <LayerToggle
             on={layers.events}
@@ -741,6 +756,55 @@ function GlyphBlob({ color }: { color: string }) {
 
 function GlyphDot() {
   return <span className="size-2 rounded-full bg-neutral-500" aria-hidden />;
+}
+
+function stressNodePopupHtml(sn: StressNode): string {
+  const b =
+    sn.localBValue != null && Number.isFinite(sn.localBValue)
+      ? sn.localBValue.toFixed(2)
+      : "—";
+  const near =
+    sn.nearFractureId && sn.nearFractureDistKm != null
+      ? `${sn.nearFractureDistKm.toFixed(2)} km to plane`
+      : "no close plane (<0.8 km)";
+  const energy =
+    Number.isFinite(sn.energyDensity) ? sn.energyDensity.toFixed(2) : "—";
+  const shallow =
+    Number.isFinite(sn.shallowness) ? `${(sn.shallowness * 100).toFixed(0)}%` : "—";
+  const meanM = Number.isFinite(sn.meanMag) ? sn.meanMag.toFixed(2) : "—";
+  const lat = sn.location.lat.toFixed(4);
+  const lon = sn.location.lon.toFixed(4);
+  const priority =
+    sn.score >= 75 ? "HIGH" : sn.score >= 55 ? "MODERATE" : "SECONDARY";
+  const priColor =
+    sn.score >= 75 ? "#c62828" : sn.score >= 55 ? "#ef6c00" : "#546e7a";
+
+  return `
+  <div style="font:12px/1.45 ui-sans-serif,system-ui;color:#1a1a1a;max-width:300px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="display:inline-flex;width:22px;height:22px;border-radius:50%;background:#ffb300;border:2px solid #1a1200;align-items:center;justify-content:center;font:800 11px ui-monospace;box-shadow:0 0 0 1px #fff">${sn.rank}</span>
+      <div>
+        <div style="font-weight:700;font-size:13px">Stress node #${sn.rank}</div>
+        <div style="font-size:10px;color:${priColor};font-weight:600">${priority} · score ${sn.score}/100</div>
+      </div>
+    </div>
+    <p style="margin:0 0 8px;font-size:11px;color:#333">${sn.interpretation}</p>
+    <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,monospace;font-size:10px">
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Depth (mean)</td><td style="text-align:right;font-weight:600">${sn.depthKm.toFixed(2)} km</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Events in cell</td><td style="text-align:right;font-weight:600">${sn.eventCount}</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Last 6h</td><td style="text-align:right;font-weight:600">${sn.recentCount6h}</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Max / mean M</td><td style="text-align:right;font-weight:600">M${sn.maxMag.toFixed(1)} / ${meanM}</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Energy density</td><td style="text-align:right;font-weight:600">${energy}</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Shallowness</td><td style="text-align:right;font-weight:600">${shallow}</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Local b-value</td><td style="text-align:right;font-weight:600">${b}</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Near fracture</td><td style="text-align:right;font-weight:600">${near}</td></tr>
+      <tr><td style="color:#666;padding:2px 6px 2px 0">Location</td><td style="text-align:right;font-weight:600">${lat}N ${lon}E</td></tr>
+    </table>
+    <p style="margin:8px 0 0;font-size:9px;color:#777;line-height:1.35">
+      Score blends density, energy, shallowness & proximity to fitted planes.
+      Preferential zone for continued activity in this window — not a forecast of the next epicentre.
+    </p>
+  </div>`;
 }
 
 function fieldColor(i: number): string {
