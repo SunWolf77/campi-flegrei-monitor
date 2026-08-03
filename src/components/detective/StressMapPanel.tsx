@@ -70,7 +70,7 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
       {!fs && (
         <div className="flex flex-wrap items-center gap-2 px-0.5">
           <Crosshair className="size-3.5 text-accent" />
-          <span className="text-xs font-medium">Fabric · stress & fracture</span>
+          <span className="text-xs font-medium">SUPT · stress & fracture</span>
           <Badge variant="outline" className="h-5 font-mono text-[10px]">
             {report.fabric.stressNodes.length} nodes
           </Badge>
@@ -320,8 +320,8 @@ function ObservationalBrief({
             : " = migration (needs enough time bins)."}
         </li>
         <li>
-          Continuum EII {eii.toFixed(2)} · {rpam}. Fabric shows <strong>where</strong>; SUPT tab
-          shows <strong>how ordered</strong> — still observational, not prediction.
+          Map shows <strong>where</strong> stress concentrates; findings below show{" "}
+          <strong>how ordered</strong> the swarm is — observational, not prediction.
         </li>
       </ul>
     </div>

@@ -66,7 +66,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ShareMenu } from "@/components/ui/ShareMenu";
 import { cn, formatDateTime, formatMag, formatRelativeTime, magValue } from "@/lib/utils";
 
-type TabKey = "map" | "fabric" | "depth" | "timeline" | "swarm" | "catalog" | "feeds";
+type TabKey = "map" | "supt" | "depth" | "timeline" | "swarm" | "catalog" | "feeds";
 
 const WINDOWS: { key: WindowKey; label: string }[] = [
   { key: "24h", label: "24h" },
@@ -85,7 +85,7 @@ const DEPTH_GATES: { km: number | null; label: string }[] = [
 
 const TABS: { key: TabKey; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "map", label: "Map", icon: MapIcon },
-  { key: "fabric", label: "Fabric", icon: Crosshair },
+  { key: "supt", label: "SUPT", icon: Crosshair },
   { key: "depth", label: "Depth", icon: Layers },
   { key: "timeline", label: "Time", icon: Activity },
   { key: "swarm", label: "Swarms", icon: Waves },
@@ -290,7 +290,7 @@ export function MonitorApp({ initial }: Props) {
   const headerCollapsed =
     headerCollapsedUser != null
       ? headerCollapsedUser
-      : preferCollapsedChrome(vp, tab === "map" || tab === "fabric");
+      : preferCollapsedChrome(vp, tab === "map" || tab === "supt");
 
   const toggleHeader = () => {
     const next = !headerCollapsed;
@@ -315,7 +315,7 @@ export function MonitorApp({ initial }: Props) {
   const mapHeightPx = mapFillHeightPx(
     vp,
     chromeH,
-    tab === "map" || tab === "fabric" ? 40 : 0,
+    tab === "map" || tab === "supt" ? 40 : 0,
   );
 
   return (
@@ -613,7 +613,7 @@ export function MonitorApp({ initial }: Props) {
         )}
 
         {/* KPIs only off map — pulse strip covers EII/rate on map tab */}
-        {tab !== "map" && tab !== "fabric" && (
+        {tab !== "map" && tab !== "supt" && (
           <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
             <Kpi
               label="Events"
@@ -648,7 +648,7 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
-        {largest && magValue(largest.magnitude) >= 3.5 && tab !== "map" && tab !== "fabric" && (
+        {largest && magValue(largest.magnitude) >= 3.5 && tab !== "map" && tab !== "supt" && (
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-1.5 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <AlertTriangle className="size-3.5 text-destructive" />
@@ -755,7 +755,7 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
-        {tab === "fabric" && (
+        {tab === "supt" && (
           <div className="flex min-w-0 flex-col gap-3">
             <StressMapPanel
               events={events}

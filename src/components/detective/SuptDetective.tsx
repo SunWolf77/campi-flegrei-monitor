@@ -49,7 +49,7 @@ type Props = {
   events: QuakeEvent[];
   node: FocusNode;
   swarm: SwarmAnalysis;
-  /** When true, skip embedded map (Fabric tab already shows StressMapPanel). */
+  /** When true, skip embedded map (SUPT tab already shows StressMapPanel). */
   hideMap?: boolean;
 };
 
@@ -123,7 +123,7 @@ export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3 overflow-x-hidden">
-      {/* Map only when standalone; Fabric tab supplies StressMapPanel above */}
+      {/* Map only when standalone; SUPT tab supplies StressMapPanel above */}
       {!hideMap && (
       <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
         <Card className="overflow-hidden">

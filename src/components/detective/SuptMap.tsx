@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Expand, HelpCircle, Home, Layers, Minimize2, X } from "lucide-react";
+import { ChevronDown, Expand, HelpCircle, Home, Layers, X } from "lucide-react";
 import type { FocusNode, QuakeEvent } from "@/lib/seismic/types";
 import type { FracturePlane, StressNode, Lineament, MigrationStep } from "@/lib/seismic/supt";
 import { leafletMagRadius, timeAgeColor, eventAge01 } from "@/lib/seismic/colors";
@@ -506,7 +506,7 @@ export function SuptMap({
     >
       <div ref={containerRef} className="absolute inset-0 z-0" />
 
-      {showControls && (
+      {showControls && !fullscreen && (
         <div className="absolute top-2 left-2 z-20 flex flex-wrap items-center gap-1">
           <Button
             type="button"
@@ -525,29 +525,20 @@ export function SuptMap({
             variant="secondary"
             className="h-8 gap-1 border border-border bg-card/95 px-2 text-[11px] shadow-md backdrop-blur-sm"
             onClick={() => void fitToFabric()}
-            title="Fabric (G) — frame stress & fractures"
+            title="Frame stress nodes & fractures (G)"
           >
-            Fabric
+            Frame
           </Button>
           <Button
             type="button"
             size="sm"
-            variant={fullscreen ? "default" : "secondary"}
+            variant="secondary"
             className="h-8 gap-1 border border-border bg-card/95 px-2 text-[11px] shadow-md backdrop-blur-sm"
-            onClick={() => setFs(!fullscreen)}
-            title="Fullscreen (F) · Esc exit"
+            onClick={() => setFs(true)}
+            title="Fullscreen (F)"
           >
-            {fullscreen ? (
-              <>
-                <Minimize2 className="size-3.5" />
-                Exit
-              </>
-            ) : (
-              <>
-                <Expand className="size-3.5" />
-                Full
-              </>
-            )}
+            <Expand className="size-3.5" />
+            Full
           </Button>
           <Button
             type="button"
@@ -559,19 +550,61 @@ export function SuptMap({
           >
             <HelpCircle className="size-3.5" />
           </Button>
-          {fullscreen && (
+        </div>
+      )}
+
+      {/* Fullscreen: clear Close + Reset — top bar, large touch targets */}
+      {fullscreen && (
+        <>
+          <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-2 bg-gradient-to-b from-black/55 to-transparent px-2 pb-8 pt-2 sm:px-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-10 min-w-[7.5rem] gap-1.5 border border-white/25 bg-card px-3 text-xs font-semibold shadow-lg"
+                onClick={() => void goHome()}
+                title="Reset view to caldera (H)"
+              >
+                <Home className="size-4" />
+                Reset view
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-10 gap-1.5 border border-white/25 bg-card px-3 text-xs font-medium shadow-lg"
+                onClick={() => void fitToFabric()}
+                title="Frame stress & fractures (G)"
+              >
+                Frame nodes
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={helpOpen ? "default" : "secondary"}
+                className="h-10 w-10 border border-white/25 bg-card px-0 shadow-lg"
+                onClick={() => setHelpOpen((v) => !v)}
+                title="Keys (?)"
+              >
+                <HelpCircle className="size-4" />
+              </Button>
+            </div>
             <Button
               type="button"
               size="sm"
-              variant="ghost"
-              className="h-8 w-8 border border-border bg-card/95 px-0 shadow-md"
+              className="h-11 min-w-[6.5rem] gap-2 border-2 border-white/40 bg-foreground px-4 text-sm font-bold text-background shadow-xl hover:bg-foreground/90"
               onClick={() => setFs(false)}
-              title="Close fullscreen"
+              title="Close fullscreen (Esc)"
             >
-              <X className="size-3.5" />
+              <X className="size-5 stroke-[2.5]" />
+              Close
             </Button>
-          )}
-        </div>
+          </div>
+          <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border border-border/80 bg-card/95 px-3 py-1 font-mono text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
+            {node.code} · Esc closes · H resets
+          </div>
+        </>
       )}
 
       {/* Layers: collapsed chip by default (mobile-safe); expands on tap */}
@@ -658,13 +691,6 @@ export function SuptMap({
         )}
       </div>
 
-      {fullscreen && (
-        <div className="pointer-events-none absolute top-2 right-2 z-20 rounded-md border border-border/80 bg-card/95 px-2 py-1 font-mono text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
-          {node.code} · stress & fracture · Esc exit · ? keys
-        </div>
-      )}
-
-
       {helpOpen && (
         <div className="absolute inset-x-2 bottom-16 z-30 mx-auto max-w-md rounded-lg border border-border bg-card/98 p-3 text-xs shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:right-auto">
           <div className="mb-2 flex items-center justify-between">
@@ -681,7 +707,7 @@ export function SuptMap({
             <dt className="text-accent">H</dt>
             <dd>Home — node caldera / arc frame</dd>
             <dt className="text-accent">G</dt>
-            <dd>Fabric — fit stress nodes + fractures</dd>
+            <dd>Frame — fit stress nodes + fractures</dd>
             <dt className="text-accent">F</dt>
             <dd>Toggle fullscreen</dd>
             <dt className="text-accent">L</dt>
