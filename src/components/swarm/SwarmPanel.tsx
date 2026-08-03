@@ -177,7 +177,7 @@ export function SwarmPanel({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Detected clusters</CardTitle>
           <CardDescription>
-            Temporal–spatial grouping (gap ≤3 h, radius ≤12 km). Slim transport: top events only.
+            Groups of quakes close in time and place. Tap a group to open it on the map.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">

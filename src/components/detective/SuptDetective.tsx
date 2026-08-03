@@ -51,6 +51,9 @@ type Props = {
   swarm: SwarmAnalysis;
   /** When true, skip embedded map (SUPT tab already shows StressMapPanel). */
   hideMap?: boolean;
+  /** Shared parent feeds — skips local poll when provided */
+  spaceWeather?: SpaceWeatherSnapshot | null;
+  schumannSnap?: SchumannSnapshot | null;
 };
 
 const TONE: Record<string, string> = {
@@ -62,21 +65,33 @@ const TONE: Record<string, string> = {
   null: "border-border bg-card",
 };
 
-export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
-  const [sw, setSw] = useState<SpaceWeatherSnapshot | null>(null);
-  const [schumann, setSchumann] = useState<SchumannSnapshot | null>(null);
+export function SuptDetective({
+  events,
+  node,
+  swarm,
+  hideMap = false,
+  spaceWeather,
+  schumannSnap,
+}: Props) {
+  const [localSw, setLocalSw] = useState<SpaceWeatherSnapshot | null>(null);
+  const [localSch, setLocalSch] = useState<SchumannSnapshot | null>(null);
   const [showTech, setShowTech] = useState(false);
   const [focusMode, setFocusMode] = useState(() => getSuptFocusMode());
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  const useParentFeeds = spaceWeather !== undefined || schumannSnap !== undefined;
+  const sw = spaceWeather !== undefined ? spaceWeather : localSw;
+  const schumann = schumannSnap !== undefined ? schumannSnap : localSch;
+
   useEffect(() => {
+    if (useParentFeeds) return;
     let cancelled = false;
     const load = () => {
       void fetchSpaceWeather().then((snap) => {
-        if (!cancelled) setSw(snap);
+        if (!cancelled) setLocalSw(snap);
       });
       void fetchSchumann().then((snap) => {
-        if (!cancelled) setSchumann(snap);
+        if (!cancelled) setLocalSch(snap);
       });
     };
     load();
@@ -85,7 +100,7 @@ export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [useParentFeeds]);
 
   const report: SwarmDetectiveReport = useMemo(
     () => runSwarmDetective(events, node, swarm, Date.now(), sw, schumann),
@@ -278,14 +293,17 @@ export function SuptDetective({ events, node, swarm, hideMap = false }: Props) {
         </Card>
       )}
 
-      <EpochLogPanel
-        nodeId={node.id}
-        continuum={C}
-        swarm={swarm}
-        schumann={schumann}
-        density="compact"
-        enableLearn={false}
-      />
+      {/* Epoch log lives on Feeds when hideMap — avoid double panel on SUPT tab */}
+      {!hideMap && (
+        <EpochLogPanel
+          nodeId={node.id}
+          continuum={C}
+          swarm={swarm}
+          schumann={schumann}
+          density="compact"
+          enableLearn={false}
+        />
+      )}
 
       {/* Hero — plain language by default; Technical reveals operator codes */}
       <Card className={cn("border-accent/25", TONE[report.verdict.tone] ?? TONE.none)}>

@@ -11,7 +11,20 @@ type Props = {
   className?: string;
 };
 
-/** Compact global pulse — one scan line, always visible in header. */
+function energyWord(eii: number, rpam: string): string {
+  if (rpam === "ACTIVE" || eii >= 0.85) return "High";
+  if (rpam === "ELEVATED" || eii >= 0.6) return "Elev.";
+  if (eii >= 0.35) return "Mod.";
+  return "Base";
+}
+
+function phaseWord(rpam: string): string {
+  if (rpam === "ACTIVE") return "High load";
+  if (rpam === "ELEVATED") return "Elevated";
+  return "Watching";
+}
+
+/** Compact global pulse — plain labels, scan-friendly. */
 export function PulseStrip({
   continuum: C,
   intensity,
@@ -21,21 +34,20 @@ export function PulseStrip({
 }: Props) {
   return (
     <div
-      className={cn(
-        "flex items-center gap-1 overflow-x-auto text-[11px]",
-        className,
-      )}
+      className={cn("flex items-center gap-1 overflow-x-auto text-[11px]", className)}
       role="status"
       aria-label="Live pulse strip"
     >
       <Pill
-        label="EII"
-        value={C.eii.toFixed(2)}
+        label="Energy"
+        value={energyWord(C.eii, C.rpam)}
+        title={`Energy load index ${C.eii.toFixed(2)} · ${C.rpam}`}
         tone={C.eii >= 0.85 ? "critical" : C.eii >= 0.6 ? "warn" : "muted"}
       />
       <Pill
-        label="RPAM"
-        value={C.rpam}
+        label="Phase"
+        value={phaseWord(C.rpam)}
+        title={`RPAM ${C.rpam}`}
         tone={
           C.rpam === "ACTIVE" ? "critical" : C.rpam === "ELEVATED" ? "warn" : "muted"
         }
@@ -43,12 +55,14 @@ export function PulseStrip({
       <Pill
         label="SR"
         value={String(C.schumannIndex || "—")}
+        title="Schumann resonance index"
         tone={C.schumannIndex >= 70 ? "warn" : "muted"}
         mono
       />
       <Pill
-        label="Int"
+        label="Swarm"
         value={intensity.level}
+        title={intensity.note}
         tone={
           intensity.tone === "critical"
             ? "critical"
@@ -59,14 +73,23 @@ export function PulseStrip({
                 : "muted"
         }
       />
-      <Pill label="6h" value={String(rate6h)} mono tone="muted" />
+      <Pill
+        label="6h"
+        value={String(rate6h)}
+        title="Events in last 6 hours"
+        mono
+        tone="muted"
+      />
       {newSincePoll > 0 && (
         <Badge variant="outline" className="h-5 shrink-0 px-1.5 font-mono text-[10px]">
           +{newSincePoll}
         </Badge>
       )}
-      <span className="ml-auto hidden shrink-0 font-mono text-[10px] text-muted-foreground xl:inline">
-        CCI {C.cci.toFixed(2)} · Kp {C.kp.toFixed(1)}
+      <span
+        className="ml-auto hidden shrink-0 font-mono text-[10px] text-muted-foreground xl:inline"
+        title="Geomagnetic Kp"
+      >
+        Kp {C.kp.toFixed(1)}
       </span>
     </div>
   );
@@ -77,14 +100,17 @@ function Pill({
   value,
   tone,
   mono,
+  title,
 }: {
   label: string;
   value: string;
   tone: "muted" | "accent" | "warn" | "critical";
   mono?: boolean;
+  title?: string;
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex h-5 shrink-0 items-center gap-0.5 rounded border px-1.5 text-[10px] leading-none",
         mono && "font-mono tabular-nums",

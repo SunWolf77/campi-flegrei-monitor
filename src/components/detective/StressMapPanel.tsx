@@ -17,27 +17,43 @@ type Props = {
   swarm: SwarmAnalysis;
   height: number;
   className?: string;
+  /** Shared parent feeds — skips local poll when provided */
+  spaceWeather?: SpaceWeatherSnapshot | null;
+  schumannSnap?: SchumannSnapshot | null;
 };
 
 /**
- * Top-level Stress & fracture map — fabric + observational reading.
+ * Stress & fracture map — primary SUPT map surface.
  */
-export function StressMapPanel({ events, node, swarm, height, className }: Props) {
-  const [sw, setSw] = useState<SpaceWeatherSnapshot | null>(null);
-  const [schumann, setSchumann] = useState<SchumannSnapshot | null>(null);
+export function StressMapPanel({
+  events,
+  node,
+  swarm,
+  height,
+  className,
+  spaceWeather,
+  schumannSnap,
+}: Props) {
+  const [localSw, setLocalSw] = useState<SpaceWeatherSnapshot | null>(null);
+  const [localSch, setLocalSch] = useState<SchumannSnapshot | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [fs, setFs] = useState(false);
   const [briefOpen, setBriefOpen] = useState(false);
   const [nodeOpen, setNodeOpen] = useState(false);
 
+  const useParentFeeds = spaceWeather !== undefined || schumannSnap !== undefined;
+  const sw = spaceWeather !== undefined ? spaceWeather : localSw;
+  const schumann = schumannSnap !== undefined ? schumannSnap : localSch;
+
   useEffect(() => {
+    if (useParentFeeds) return;
     let cancelled = false;
     const load = () => {
       void fetchSpaceWeather().then((s) => {
-        if (!cancelled) setSw(s);
+        if (!cancelled) setLocalSw(s);
       });
       void fetchSchumann().then((s) => {
-        if (!cancelled) setSchumann(s);
+        if (!cancelled) setLocalSch(s);
       });
     };
     load();
@@ -46,7 +62,7 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [useParentFeeds]);
 
   const report = useMemo(
     () => runSwarmDetective(events, node, swarm, Date.now(), sw, schumann),
@@ -70,7 +86,7 @@ export function StressMapPanel({ events, node, swarm, height, className }: Props
       {!fs && (
         <div className="flex flex-wrap items-center gap-2 px-0.5">
           <Crosshair className="size-3.5 text-accent" />
-          <span className="text-xs font-medium">SUPT · stress & fracture</span>
+          <span className="text-xs font-medium">Stress & fracture</span>
           <Badge variant="outline" className="h-5 font-mono text-[10px]">
             {report.fabric.stressNodes.length} nodes
           </Badge>
@@ -174,7 +190,7 @@ function SelectedNodeCard({
   const near =
     sn.nearFractureId && sn.nearFractureDistKm != null
       ? `${sn.nearFractureDistKm.toFixed(2)} km from fitted plane`
-      : "No close fracture plane in fabric";
+      : "No close fracture plane nearby";
 
   return (
     <div className="rounded-lg border border-border bg-card">

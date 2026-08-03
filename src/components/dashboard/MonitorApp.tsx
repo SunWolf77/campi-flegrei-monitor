@@ -145,7 +145,9 @@ export function MonitorApp({ initial }: Props) {
     () => getHeaderCollapsedPref(),
   );
   const headerRef = useRef<HTMLElement | null>(null);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
   const [chromeH, setChromeH] = useState(96);
+  const [tabsH, setTabsH] = useState(40);
 
   // Quiet + collapse prefs on mount
   useEffect(() => {
@@ -275,14 +277,6 @@ export function MonitorApp({ initial }: Props) {
     });
   };
 
-  /** One-tap mobile field mode: force quiet + close filters */
-  const enableMobileQuiet = () => {
-    setQuietMode(true, "user");
-    setQuiet(true);
-    setQuietSource("user");
-    setFiltersOpen(false);
-  };
-
   const filterActive =
     minMag > 0 || (nodeId === "campi-flegrei" && maxDepthKm != null && maxDepthKm !== 8);
 
@@ -299,7 +293,7 @@ export function MonitorApp({ initial }: Props) {
     if (next) setFiltersOpen(false);
   };
 
-  // Measure sticky chrome (header + tabs row lives in main — measure header only)
+  // Measure sticky chrome (header only — tabs are in main, measured separately)
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -311,11 +305,22 @@ export function MonitorApp({ initial }: Props) {
     return () => ro.disconnect();
   }, [headerCollapsed, filtersOpen, quiet]);
 
-  // Map fill from Visual Viewport height − measured header − tabs
+  useEffect(() => {
+    const el = tabsRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setTabsH(Math.ceil(el.getBoundingClientRect().height));
+    });
+    ro.observe(el);
+    setTabsH(Math.ceil(el.getBoundingClientRect().height));
+    return () => ro.disconnect();
+  }, [tab]);
+
+  // Map fill = visual viewport − header − tabs − main padding
   const mapHeightPx = mapFillHeightPx(
     vp,
-    chromeH,
-    tab === "map" || tab === "supt" ? 40 : 0,
+    chromeH + tabsH,
+    tab === "map" || tab === "supt" ? 16 : 0,
   );
 
   return (
@@ -338,8 +343,8 @@ export function MonitorApp({ initial }: Props) {
                 </Badge>
               )}
               {quiet && (
-                <Badge variant="secondary" className="h-5 px-1 text-[10px]">
-                  Q
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                  Quiet
                 </Badge>
               )}
             </div>
@@ -388,7 +393,11 @@ export function MonitorApp({ initial }: Props) {
                 size="sm"
                 onClick={toggleQuiet}
                 className="h-8 w-8 px-0"
-                title={quiet ? "Quiet on" : "Quiet mode"}
+                title={
+                  quiet
+                    ? "Quiet on — library links hidden (tap to expand)"
+                    : "Quiet mode — hide secondary links"
+                }
               >
                 {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
               </Button>
@@ -672,7 +681,10 @@ export function MonitorApp({ initial }: Props) {
         )}
 
         {/* Tabs — primary navigation */}
-        <div className="mb-2 flex gap-0.5 overflow-x-auto border-b border-border pb-0">
+        <div
+          ref={tabsRef}
+          className="mb-2 flex gap-0.5 overflow-x-auto border-b border-border pb-0"
+        >
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
@@ -762,8 +774,17 @@ export function MonitorApp({ initial }: Props) {
               node={node}
               swarm={swarm}
               height={mapHeightPx}
+              spaceWeather={sw}
+              schumannSnap={schumann}
             />
-            <SuptDetective events={events} node={node} swarm={swarm} hideMap />
+            <SuptDetective
+              events={events}
+              node={node}
+              swarm={swarm}
+              hideMap
+              spaceWeather={sw}
+              schumannSnap={schumann}
+            />
           </div>
         )}
 
