@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FocusNode, QuakeEvent } from "@/lib/seismic/types";
 import {
   depthColor,
@@ -15,7 +15,12 @@ import {
   cn,
 } from "@/lib/utils";
 import { gossipOfficialMapUrl } from "@/lib/seismic/providers/gossip";
-import { basemapTileOptions, basemapTileUrl } from "@/lib/map/tiles";
+import {
+  basemapTileOptions,
+  basemapTileUrl,
+  defaultBasemapForNode,
+  type BasemapKind,
+} from "@/lib/map/tiles";
 
 export type MapColorMode = "time" | "magnitude" | "depth";
 
@@ -28,9 +33,31 @@ type Props = {
   className?: string;
 };
 
+function catalogAttribution(node: FocusNode): string {
+  if (node.id === "tonga-kermadec") {
+    return " · catalog USGS FDSN";
+  }
+  return " · catalog INGV-OV GOSSIP / FDSN";
+}
+
+function officialMapLabel(node: FocusNode): string {
+  return node.id === "tonga-kermadec" ? "USGS" : "GOSSIP";
+}
+
+function officialMapHref(node: FocusNode): string {
+  if (node.id === "tonga-kermadec") {
+    return (
+      "https://earthquake.usgs.gov/earthquakes/map/?extent=-31,-180&extent=-17,-170" +
+      "&range=week&magnitude=all&baseLayer=satellite"
+    );
+  }
+  return node.volcano?.officialMapUrl ?? gossipOfficialMapUrl(new Date().getUTCFullYear());
+}
+
 /**
- * Real basemap (OpenStreetMap) + INGV-style epicenter circles.
- * Viewport locks to focus-node bbox (not outlier events) so CF stays caldera-tight.
+ * Real basemap + epicenter circles.
+ * Satellite default for TK (ocean arc); Voyager default for CF (land caldera).
+ * Marker fills use hardcoded hex — CSS vars do not resolve in Leaflet pathOptions.
  */
 export function OsmEpicenterMap({
   node,
@@ -43,6 +70,7 @@ export function OsmEpicenterMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const tileRef = useRef<import("leaflet").TileLayer | null>(null);
   const selectedRef = useRef(selectedId);
   const onSelectRef = useRef(onSelect);
   const eventsRef = useRef(events);
@@ -53,6 +81,15 @@ export function OsmEpicenterMap({
   eventsRef.current = events;
   colorModeRef.current = colorMode;
   nodeRef.current = node;
+
+  const [basemap, setBasemap] = useState<BasemapKind>(() =>
+    defaultBasemapForNode(node.id),
+  );
+
+  // Reset basemap when switching CF ↔ TK
+  useEffect(() => {
+    setBasemap(defaultBasemapForNode(node.id));
+  }, [node.id]);
 
   const tRange = useMemo(() => {
     if (events.length === 0) {
@@ -94,13 +131,25 @@ export function OsmEpicenterMap({
       const r = leafletMagRadius(ev.magnitude);
       const isSel = ev.id === selectedRef.current;
       const isBig = magValue(ev.magnitude, 0) >= 4;
+      const stroke =
+        basemap === "satellite" || basemap === "dark"
+          ? isSel
+            ? "#ffffff"
+            : isBig
+              ? "rgba(255,255,255,0.85)"
+              : "rgba(255,255,255,0.45)"
+          : isSel
+            ? "#0a0a0b"
+            : isBig
+              ? "#1a1a1a"
+              : "rgba(0,0,0,0.35)";
 
       const circle = L.circleMarker([ev.latitude, ev.longitude], {
         radius: isSel ? r + 2 : r,
-        color: isSel ? "#0a0a0b" : isBig ? "#1a1a1a" : "rgba(0,0,0,0.35)",
+        color: stroke,
         weight: isSel ? 2.5 : 1,
         fillColor: fill,
-        fillOpacity: isSel ? 0.95 : 0.78,
+        fillOpacity: isSel ? 0.95 : 0.82,
       });
 
       const magLabel =
@@ -109,7 +158,7 @@ export function OsmEpicenterMap({
         `<div style="font:12px/1.35 ui-sans-serif,system-ui">
           <strong style="font-family:ui-monospace,monospace">${magLabel}</strong><br/>
           ${formatDepth(ev.depthKm)} · ${formatRelativeTime(ev.time)}<br/>
-          <span style="opacity:.75">${ev.latitude.toFixed(4)}N ${ev.longitude.toFixed(4)}E</span><br/>
+          <span style="opacity:.75">${ev.latitude.toFixed(4)}, ${ev.longitude.toFixed(4)}</span><br/>
           <span style="opacity:.7">${formatDateTime(ev.time)}</span>
         </div>`,
         { direction: "top", opacity: 0.95, className: "eq-tooltip" },
@@ -122,7 +171,6 @@ export function OsmEpicenterMap({
 
       circle.addTo(group);
     }
-    // Viewport stays on node bbox — do not fitBounds to outliers
   }
 
   // Init map once per node
@@ -153,28 +201,25 @@ export function OsmEpicenterMap({
         zoomControl: false,
         attributionControl: true,
         preferCanvas: true,
-        // smoother pan: don't re-layout markers every frame mid-gesture
         fadeAnimation: true,
         zoomAnimation: true,
         markerZoomAnimation: false,
       });
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      L.tileLayer(basemapTileUrl("voyager"), {
-        ...basemapTileOptions("voyager"),
-        attribution:
-          basemapTileOptions("voyager").attribution +
-          " · catalog INGV-OV GOSSIP / FDSN",
+      const kind = defaultBasemapForNode(node.id);
+      const tiles = L.tileLayer(basemapTileUrl(kind), {
+        ...basemapTileOptions(kind),
+        attribution: basemapTileOptions(kind).attribution + catalogAttribution(node),
       }).addTo(map);
+      tileRef.current = tiles;
 
-      // Focus-node viewport — prefer mapView (tight CF caldera); never fit to outliers
       const view = node.mapView ?? node.bbox;
       const pad = node.mapPad ?? 0.02;
       const bounds = L.latLngBounds(
         [view.minLat - pad, view.minLon - pad],
         [view.maxLat + pad, view.maxLon + pad],
       );
-      // CF: caldera fills frame; TK needs more room
       const maxZoom = node.id === "campi-flegrei" ? 13 : 8;
       map.fitBounds(bounds, {
         padding: [8, 8],
@@ -213,10 +258,37 @@ export function OsmEpicenterMap({
         mapRef.current.remove();
         mapRef.current = null;
         layerRef.current = null;
+        tileRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
+
+  // Swap basemap tiles without rebuilding the map
+  useEffect(() => {
+    let cancelled = false;
+    async function swap() {
+      const L = await import("leaflet");
+      const map = mapRef.current;
+      if (cancelled || !map) return;
+      if (tileRef.current) {
+        map.removeLayer(tileRef.current);
+        tileRef.current = null;
+      }
+      const tiles = L.tileLayer(basemapTileUrl(basemap), {
+        ...basemapTileOptions(basemap),
+        attribution:
+          basemapTileOptions(basemap).attribution + catalogAttribution(nodeRef.current),
+      }).addTo(map);
+      tileRef.current = tiles;
+      void redrawMarkers();
+    }
+    void swap();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basemap]);
 
   useEffect(() => {
     void redrawMarkers();
@@ -230,7 +302,6 @@ export function OsmEpicenterMap({
     mapRef.current.panTo([ev.latitude, ev.longitude], { animate: true });
   }, [selectedId, events]);
 
-  // Keep map sized when parent flex/height changes
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -241,15 +312,15 @@ export function OsmEpicenterMap({
     return () => ro.disconnect();
   }, []);
 
-  const officialUrl =
-    node.volcano?.officialMapUrl ?? gossipOfficialMapUrl(new Date().getUTCFullYear());
+  const officialUrl = officialMapHref(node);
+  const officialLabel = officialMapLabel(node);
 
   return (
     <div className={cn("relative h-full w-full overflow-hidden rounded-lg", className)}>
-      <div ref={containerRef} className="absolute inset-0 z-0 bg-[#d8e0e8]" />
+      <div ref={containerRef} className="absolute inset-0 z-0 bg-[#0e1014]" />
 
-      {/* Legend — bottom-left, clear of zoom (bottom-right) */}
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[200px] rounded-md border border-border/80 bg-card/95 px-2 py-1.5 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
+      {/* Legend — bottom-left */}
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[220px] rounded-md border border-border/80 bg-card/95 px-2 py-1.5 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
         <div className="mb-0.5 font-medium text-foreground">
           {colorMode === "time"
             ? "Event age"
@@ -267,21 +338,56 @@ export function OsmEpicenterMap({
             <span className="ml-1">new → old</span>
           </div>
         ) : colorMode === "magnitude" ? (
-          <span>Size ∝ Md · grey = N/D</span>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="size-2 rounded-full" style={{ background: "#5a6570" }} />
+            <span className="size-2 rounded-full" style={{ background: "#6a9bb0" }} />
+            <span className="size-2 rounded-full" style={{ background: "#c9a05a" }} />
+            <span className="size-2 rounded-full" style={{ background: "#d4784a" }} />
+            <span className="size-2 rounded-full" style={{ background: "#e05555" }} />
+            <span className="ml-1">size ∝ M · colour = mag band</span>
+          </div>
         ) : (
-          <span>Warm = shallow · cool = deeper</span>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="size-2 rounded-full" style={{ background: "#e07060" }} />
+            <span className="size-2 rounded-full" style={{ background: "#c9a05a" }} />
+            <span className="size-2 rounded-full" style={{ background: "#5a8fbf" }} />
+            <span className="ml-1">warm = shallow · cool = deeper</span>
+          </div>
         )}
       </div>
 
-      {/* Top-right: official map only (event count lives in card chrome) */}
-      <div className="absolute top-2 right-2 z-10">
+      {/* Top-right: basemap + official catalog */}
+      <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
+        <div className="flex gap-0.5 rounded-md border border-border bg-card/95 p-0.5 shadow-md backdrop-blur-sm">
+          {(
+            [
+              ["satellite", "Sat"],
+              ["voyager", "Map"],
+              ["dark", "Dark"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setBasemap(k)}
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                basemap === k
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <a
           href={officialUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card/95 px-2 text-[10px] font-medium text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-muted"
         >
-          GOSSIP
+          {officialLabel}
         </a>
       </div>
     </div>
