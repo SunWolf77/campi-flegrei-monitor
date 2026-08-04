@@ -15,6 +15,7 @@ import { getAuthority } from "./authority";
 export const SENTINEL_ORIGIN = "https://sun-earth-sentinel.vercel.app";
 export const TONGA_BOARD_URL = "https://tonga-kermadec-monitor.vercel.app/";
 export const CAMPI_BOARD_URL = "https://campi-flegrei-monitor.vercel.app/";
+export const JAPAN_BOARD_URL = "https://japan-kamchatka-monitor.vercel.app/";
 
 /** Map SES dragon id / aliases → this app's focus node id. */
 const SES_TO_FOCUS: Record<string, FocusNodeId> = {
@@ -30,7 +31,7 @@ const SES_TO_FOCUS: Record<string, FocusNodeId> = {
 };
 
 export type SesNetworkHop = {
-  id: "ses-hub" | FocusNodeId;
+  id: "ses-hub" | FocusNodeId | "japan" | "kamchatka";
   /** SES dragon id when applicable */
   dragonId: string | null;
   short: string;
@@ -54,6 +55,15 @@ export const SES_NETWORK: SesNetworkHop[] = [
     inAppNode: null,
   },
   {
+    id: "tonga-kermadec",
+    dragonId: "tonga",
+    short: "TK",
+    label: "Tonga–Kermadec Monitor",
+    order: 1,
+    href: TONGA_BOARD_URL,
+    inAppNode: "tonga-kermadec",
+  },
+  {
     id: "campi-flegrei",
     dragonId: "mediterranean",
     short: "CF",
@@ -63,13 +73,22 @@ export const SES_NETWORK: SesNetworkHop[] = [
     inAppNode: "campi-flegrei",
   },
   {
-    id: "tonga-kermadec",
-    dragonId: "tonga",
-    short: "TK",
-    label: "Tonga–Kermadec Monitor",
-    order: 1,
-    href: TONGA_BOARD_URL,
-    inAppNode: "tonga-kermadec",
+    id: "japan",
+    dragonId: "japan",
+    short: "JP",
+    label: "Japan Arc Monitor",
+    order: 3,
+    href: JAPAN_BOARD_URL,
+    inAppNode: null,
+  },
+  {
+    id: "kamchatka",
+    dragonId: "kamchatka",
+    short: "KM",
+    label: "Kamchatka–Kurils Monitor",
+    order: 3,
+    href: JAPAN_BOARD_URL + "?node=kamchatka",
+    inAppNode: null,
   },
 ];
 
