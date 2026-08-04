@@ -1,20 +1,32 @@
 import { magValue } from "../utils";
 
-/** Magnitude → fill color (restrained seismic palette). */
+/**
+ * Magnitude → fill color (hardcoded hex for Leaflet pathOptions).
+ * CSS custom properties do NOT resolve in Leaflet circleMarker fillColor.
+ */
 export function magColor(mag: number | null | undefined): string {
-  if (mag == null || Number.isNaN(mag)) return "var(--color-mag-nd)";
-  if (mag >= 4.5) return "var(--color-mag-critical)";
-  if (mag >= 3.5) return "var(--color-mag-high)";
-  if (mag >= 2.5) return "var(--color-mag-mid)";
-  if (mag >= 1.5) return "var(--color-mag-low)";
-  return "var(--color-mag-micro)";
+  if (mag == null || Number.isNaN(mag)) return "#9aa3ad";
+  if (mag >= 5.5) return "#c62828";
+  if (mag >= 4.5) return "#e05555";
+  if (mag >= 3.5) return "#d4784a";
+  if (mag >= 2.5) return "#c9a05a";
+  if (mag >= 1.5) return "#6a9bb0";
+  return "#5a6570";
 }
 
-/** Depth → fill color (shallow = warm, deeper = cool — CF is shallow-dominated). */
+/**
+ * Depth → fill color (shallow = warm, deeper = cool).
+ * Hex only — safe for Leaflet. `shallow`/`deep` are node-specific gates.
+ */
 export function depthColor(depthKm: number, shallow = 1.5, deep = 5): string {
-  if (depthKm <= shallow) return "var(--color-depth-shallow)";
-  if (depthKm >= deep) return "var(--color-depth-deep)";
-  return "var(--color-depth-mid)";
+  if (!Number.isFinite(depthKm)) return "#9aa3ad";
+  if (depthKm <= shallow) return "#e07060";
+  if (depthKm >= deep) return "#5a8fbf";
+  // interpolate mid band
+  const t = (depthKm - shallow) / Math.max(0.01, deep - shallow);
+  if (t < 0.35) return "#e08a50";
+  if (t < 0.65) return "#c9a05a";
+  return "#7a9eb8";
 }
 
 /**
