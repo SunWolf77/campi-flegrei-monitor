@@ -47,7 +47,7 @@ function officialMapLabel(node: FocusNode): string {
 function officialMapHref(node: FocusNode): string {
   if (node.id === "tonga-kermadec") {
     return (
-      "https://earthquake.usgs.gov/earthquakes/map/?extent=-31,-180&extent=-17,-170" +
+      "https://earthquake.usgs.gov/earthquakes/map/?extent=-37,-180&extent=-14,-168" +
       "&range=week&magnitude=all&baseLayer=satellite"
     );
   }
@@ -144,7 +144,13 @@ export function OsmEpicenterMap({
               ? "#1a1a1a"
               : "rgba(0,0,0,0.35)";
 
-      const circle = L.circleMarker([ev.latitude, ev.longitude], {
+      // TK spans the antimeridian — fold +lon (e.g. 179°E) to continuous west-side coords
+      const plotLon =
+        n.id === "tonga-kermadec" && ev.longitude > 0
+          ? ev.longitude - 360
+          : ev.longitude;
+
+      const circle = L.circleMarker([ev.latitude, plotLon], {
         radius: isSel ? r + 2 : r,
         color: stroke,
         weight: isSel ? 2.5 : 1,
@@ -220,7 +226,7 @@ export function OsmEpicenterMap({
         [view.minLat - pad, view.minLon - pad],
         [view.maxLat + pad, view.maxLon + pad],
       );
-      const maxZoom = node.id === "campi-flegrei" ? 13 : 8;
+      const maxZoom = node.id === "campi-flegrei" ? 13 : 7;
       map.fitBounds(bounds, {
         padding: [8, 8],
         maxZoom,
@@ -299,8 +305,12 @@ export function OsmEpicenterMap({
     if (!selectedId || !mapRef.current) return;
     const ev = events.find((e) => e.id === selectedId);
     if (!ev) return;
-    mapRef.current.panTo([ev.latitude, ev.longitude], { animate: true });
-  }, [selectedId, events]);
+    const plotLon =
+      node.id === "tonga-kermadec" && ev.longitude > 0
+        ? ev.longitude - 360
+        : ev.longitude;
+    mapRef.current.panTo([ev.latitude, plotLon], { animate: true });
+  }, [selectedId, events, node.id]);
 
   useEffect(() => {
     const el = containerRef.current;
