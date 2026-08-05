@@ -9,6 +9,9 @@ const USGS_BASE = "https://earthquake.usgs.gov/fdsnws/event/1/query";
  * Schema aligned with SES `EqFeature` (mag may be null; depth from coordinates[2]).
  *
  * Do NOT use as a co-source for Campi Flegrei — authority routing blocks it.
+ *
+ * Tonga–Kermadec spans the antimeridian. USGS FDSN requires minlongitude < maxlongitude,
+ * so TK uses two parallel strips (west + east of dateline) merged by event id.
  */
 export function parseUsgsGeoJson(data: unknown): QuakeEvent[] {
   if (!data || typeof data !== "object") return [];
@@ -62,7 +65,12 @@ export function parseUsgsGeoJson(data: unknown): QuakeEvent[] {
   return events;
 }
 
-export function buildUsgsUrl(query: SeismicQuery): string {
+type LonStrip = { minLon: number; maxLon: number };
+
+function buildUsgsUrlForStrip(
+  query: SeismicQuery,
+  strip: LonStrip,
+): string {
   const { node, start, end, minMagnitude, limit } = query;
   const params = new URLSearchParams({
     format: "geojson",
@@ -70,8 +78,8 @@ export function buildUsgsUrl(query: SeismicQuery): string {
     endtime: isoUtc(end),
     minlatitude: String(node.bbox.minLat),
     maxlatitude: String(node.bbox.maxLat),
-    minlongitude: String(node.bbox.minLon),
-    maxlongitude: String(node.bbox.maxLon),
+    minlongitude: String(strip.minLon),
+    maxlongitude: String(strip.maxLon),
     orderby: "time",
     limit: String(clampLimit(limit, 500, 2000)),
   });
@@ -81,47 +89,85 @@ export function buildUsgsUrl(query: SeismicQuery): string {
   return `${USGS_BASE}?${params.toString()}`;
 }
 
+/** Single-strip URL (non-TK nodes, or west strip default). */
+export function buildUsgsUrl(query: SeismicQuery): string {
+  return buildUsgsUrlForStrip(query, {
+    minLon: query.node.bbox.minLon,
+    maxLon: query.node.bbox.maxLon,
+  });
+}
+
+/**
+ * TK arc corridor lon strips. USGS forbids minlon > maxlon (no single
+ * antimeridian-crossing box), so we query both sides and merge.
+ * West: −180 → −168 · East: 168 → 180 (covers ± near 180° trench axis).
+ */
+const TK_LON_STRIPS: LonStrip[] = [
+  { minLon: -180, maxLon: -168 },
+  { minLon: 168, maxLon: 180 },
+];
+
+async function fetchUsgsStrip(
+  query: SeismicQuery,
+  strip: LonStrip,
+): Promise<{ events: QuakeEvent[]; sourceUrl: string }> {
+  const sourceUrl = buildUsgsUrlForStrip(query, strip);
+  let res: Response;
+  try {
+    res = await fetch(sourceUrl, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch (err) {
+    throw new Error(
+      `USGS network error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (res.status === 204) {
+    return { events: [], sourceUrl };
+  }
+  if (!res.ok) {
+    throw new Error(`USGS FDSN ${res.status}: ${res.statusText}`);
+  }
+  const data = await res.json();
+  return { events: parseUsgsGeoJson(data), sourceUrl };
+}
+
+function mergeById(batches: QuakeEvent[][]): QuakeEvent[] {
+  const seen = new Map<string, QuakeEvent>();
+  for (const batch of batches) {
+    for (const ev of batch) {
+      if (!seen.has(ev.id)) seen.set(ev.id, ev);
+    }
+  }
+  return [...seen.values()].sort((a, b) => b.time - a.time);
+}
+
 export const usgsProvider: SeismicProvider = {
   id: "usgs",
   label: "USGS FDSN Event",
   async fetchEvents(query: SeismicQuery): Promise<FetchResult> {
-    const sourceUrl = buildUsgsUrl(query);
-    let res: Response;
-    try {
-      res = await fetch(sourceUrl, {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
-    } catch (err) {
-      throw new Error(
-        `USGS network error: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    const isTk = query.node.id === "tonga-kermadec";
+    const strips = isTk
+      ? TK_LON_STRIPS
+      : [{ minLon: query.node.bbox.minLon, maxLon: query.node.bbox.maxLon }];
 
-    if (res.status === 204) {
-      return {
-        events: [],
-        provider: "usgs",
-        fetchedAt: Date.now(),
-        sourceUrl,
-        count: 0,
-        window: { start: query.start.toISOString(), end: query.end.toISOString() },
-        nodeId: query.node.id,
-        authority: "usgs-family",
-      };
-    }
-    if (!res.ok) {
-      throw new Error(`USGS FDSN ${res.status}: ${res.statusText}`);
-    }
-    const data = await res.json();
-    const events = parseUsgsGeoJson(data).sort((a, b) => b.time - a.time);
+    const results = await Promise.all(
+      strips.map((s) => fetchUsgsStrip(query, s)),
+    );
+    const events = mergeById(results.map((r) => r.events));
+    const sourceUrl = results.map((r) => r.sourceUrl).join(" | ");
+
     return {
       events,
       provider: "usgs",
       fetchedAt: Date.now(),
       sourceUrl,
       count: events.length,
-      window: { start: query.start.toISOString(), end: query.end.toISOString() },
+      window: {
+        start: query.start.toISOString(),
+        end: query.end.toISOString(),
+      },
       nodeId: query.node.id,
       authority: "usgs-family",
     };
