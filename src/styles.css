@@ -175,6 +175,15 @@ html.light .leaflet-container {
   border-top-color: var(--color-border) !important;
 }
 
+/* INGV station triangle markers — kill default leaflet icon box */
+.cf-station-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.cf-station-icon img {
+  display: none;
+}
+
 @layer utilities {
   .bg-map {
     background: var(--color-map-bg);

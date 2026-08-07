@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { OsmEpicenterMap, type MapColorMode } from "@/components/map/OsmEpicenterMap";
+import { fetchStations } from "@/lib/seismic/stationsServer";
+import type { SeismicStation } from "@/lib/seismic/stations";
 import { DepthProfile } from "@/components/charts/DepthProfile";
 import { TimelineCharts } from "@/components/charts/TimelineCharts";
 import { SwarmPanel } from "@/components/swarm/SwarmPanel";
@@ -130,6 +132,8 @@ export function MonitorApp({ initial }: Props) {
   const [maxDepthKm, setMaxDepthKm] = useState<number | null>(8);
   const [tab, setTab] = useState<TabKey>("map");
   const [colorMode, setColorMode] = useState<MapColorMode>("time");
+  const [showStations, setShowStations] = useState(false);
+  const [stations, setStations] = useState<SeismicStation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -206,6 +210,29 @@ export function MonitorApp({ initial }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // INGV-OV station metadata (CF only) — cached for map layer toggle
+  useEffect(() => {
+    if (nodeId !== "campi-flegrei") {
+      setStations([]);
+      setShowStations(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const payload = await fetchStations({ data: { nodeId } });
+        if (cancelled) return;
+        setStations(payload.stations ?? []);
+      } catch {
+        if (cancelled) return;
+        setStations([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeId]);
 
   // Keep share URL + SES handoff params continuous with active node
   useEffect(() => {
@@ -722,6 +749,9 @@ export function MonitorApp({ initial }: Props) {
                     selectedId={selectedId}
                     onSelect={onSelectEvent}
                     colorMode={colorMode}
+                    stations={stations}
+                    showStations={showStations}
+                    onToggleStations={() => setShowStations((v) => !v)}
                   />
                 </div>
               </CardContent>

@@ -21,6 +21,10 @@ import {
   defaultBasemapForNode,
   type BasemapKind,
 } from "@/lib/map/tiles";
+import {
+  stationColor,
+  type SeismicStation,
+} from "@/lib/seismic/stations";
 
 export type MapColorMode = "time" | "magnitude" | "depth";
 
@@ -31,13 +35,17 @@ type Props = {
   onSelect?: (ev: QuakeEvent | null) => void;
   colorMode?: MapColorMode;
   className?: string;
+  /** INGV-OV (+ TESNET) stations */
+  stations?: SeismicStation[];
+  showStations?: boolean;
+  onToggleStations?: () => void;
 };
 
 function catalogAttribution(node: FocusNode): string {
   if (node.id === "tonga-kermadec") {
     return " · catalog USGS FDSN";
   }
-  return " · catalog INGV-OV GOSSIP / FDSN";
+  return " · catalog INGV-OV GOSSIP / FDSN · stations FDSN";
 }
 
 function officialMapLabel(node: FocusNode): string {
@@ -54,10 +62,25 @@ function officialMapHref(node: FocusNode): string {
   return node.volcano?.officialMapUrl ?? gossipOfficialMapUrl(new Date().getUTCFullYear());
 }
 
+function stationTriangleIcon(
+  L: typeof import("leaflet"),
+  color: string,
+  label: string,
+) {
+  return L.divIcon({
+    className: "cf-station-icon",
+    html: `<div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-85%);pointer-events:auto">
+      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid ${color};filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))"></div>
+      <span style="margin-top:1px;font:600 8px/1 ui-monospace,monospace;color:${color};text-shadow:0 0 2px #fff,0 0 3px #fff;white-space:nowrap">${label}</span>
+    </div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
 /**
- * Real basemap + epicenter circles.
+ * Real basemap + epicenter circles + optional INGV station layer.
  * Satellite default for TK (ocean arc); Voyager default for CF (land caldera).
- * Marker fills use hardcoded hex — CSS vars do not resolve in Leaflet pathOptions.
  */
 export function OsmEpicenterMap({
   node,
@@ -66,27 +89,34 @@ export function OsmEpicenterMap({
   onSelect,
   colorMode = "time",
   className,
+  stations = [],
+  showStations = false,
+  onToggleStations,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const stationLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const tileRef = useRef<import("leaflet").TileLayer | null>(null);
   const selectedRef = useRef(selectedId);
   const onSelectRef = useRef(onSelect);
   const eventsRef = useRef(events);
   const colorModeRef = useRef(colorMode);
   const nodeRef = useRef(node);
+  const stationsRef = useRef(stations);
+  const showStationsRef = useRef(showStations);
   selectedRef.current = selectedId;
   onSelectRef.current = onSelect;
   eventsRef.current = events;
   colorModeRef.current = colorMode;
   nodeRef.current = node;
+  stationsRef.current = stations;
+  showStationsRef.current = showStations;
 
   const [basemap, setBasemap] = useState<BasemapKind>(() =>
     defaultBasemapForNode(node.id),
   );
 
-  // Reset basemap when switching CF ↔ TK
   useEffect(() => {
     setBasemap(defaultBasemapForNode(node.id));
   }, [node.id]);
@@ -144,7 +174,6 @@ export function OsmEpicenterMap({
               ? "#1a1a1a"
               : "rgba(0,0,0,0.35)";
 
-      // TK spans the antimeridian — fold +lon (e.g. 179°E) to continuous west-side coords
       const plotLon =
         n.id === "tonga-kermadec" && ev.longitude > 0
           ? ev.longitude - 360
@@ -179,7 +208,48 @@ export function OsmEpicenterMap({
     }
   }
 
-  // Init map once per node
+  async function redrawStations() {
+    const L = await import("leaflet");
+    const map = mapRef.current;
+    let group = stationLayerRef.current;
+    if (!map) return;
+
+    if (!group) {
+      group = L.layerGroup().addTo(map);
+      stationLayerRef.current = group;
+    }
+    group.clearLayers();
+    if (!showStationsRef.current) return;
+
+    for (const s of stationsRef.current) {
+      const color = stationColor(s);
+      const marker = L.marker([s.latitude, s.longitude], {
+        icon: stationTriangleIcon(L, color, s.code),
+        interactive: true,
+        keyboard: false,
+        zIndexOffset: 200,
+      });
+      const elev =
+        s.elevationM != null ? `${Math.round(s.elevationM)} m` : "—";
+      const roleLabel =
+        s.role === "permanent"
+          ? "OV permanent"
+          : s.role === "temporary"
+            ? "TESNET / temp"
+            : "Other";
+      marker.bindTooltip(
+        `<div style="font:12px/1.35 ui-sans-serif,system-ui;max-width:220px">
+          <strong style="font-family:ui-monospace,monospace">${s.network}.${s.code}</strong>
+          <span style="opacity:.7"> · ${roleLabel}</span><br/>
+          <span>${s.siteName || "—"}</span><br/>
+          <span style="opacity:.75">${s.latitude.toFixed(4)}N ${s.longitude.toFixed(4)}E · elev ${elev}</span>
+        </div>`,
+        { direction: "top", opacity: 0.95, className: "eq-tooltip" },
+      );
+      marker.addTo(group);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -247,12 +317,14 @@ export function OsmEpicenterMap({
       }
 
       layerRef.current = L.layerGroup().addTo(map);
+      stationLayerRef.current = L.layerGroup().addTo(map);
       mapRef.current = map;
       map.on("click", () => onSelectRef.current?.(null));
 
       window.setTimeout(() => {
         map.invalidateSize();
         void redrawMarkers();
+        void redrawStations();
       }, 80);
     }
 
@@ -264,13 +336,13 @@ export function OsmEpicenterMap({
         mapRef.current.remove();
         mapRef.current = null;
         layerRef.current = null;
+        stationLayerRef.current = null;
         tileRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
-  // Swap basemap tiles without rebuilding the map
   useEffect(() => {
     let cancelled = false;
     async function swap() {
@@ -302,6 +374,11 @@ export function OsmEpicenterMap({
   }, [events, colorMode, tRange, selectedId]);
 
   useEffect(() => {
+    void redrawStations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stations, showStations]);
+
+  useEffect(() => {
     if (!selectedId || !mapRef.current) return;
     const ev = events.find((e) => e.id === selectedId);
     if (!ev) return;
@@ -324,12 +401,13 @@ export function OsmEpicenterMap({
 
   const officialUrl = officialMapHref(node);
   const officialLabel = officialMapLabel(node);
+  const nSta = stations.length;
+  const stationToggleAvailable = node.id === "campi-flegrei";
 
   return (
     <div className={cn("relative h-full w-full overflow-hidden rounded-lg", className)}>
       <div ref={containerRef} className="absolute inset-0 z-0 bg-[#0e1014]" />
 
-      {/* Legend — bottom-left */}
       <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[220px] rounded-md border border-border/80 bg-card/95 px-2 py-1.5 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
         <div className="mb-0.5 font-medium text-foreground">
           {colorMode === "time"
@@ -364,9 +442,41 @@ export function OsmEpicenterMap({
             <span className="ml-1">warm = shallow · cool = deeper</span>
           </div>
         )}
+        {showStations && nSta > 0 && (
+          <div className="mt-1.5 border-t border-border/60 pt-1">
+            <div className="mb-0.5 font-medium text-foreground">Stations</div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className="inline-block"
+                  style={{
+                    width: 0,
+                    height: 0,
+                    borderLeft: "4px solid transparent",
+                    borderRight: "4px solid transparent",
+                    borderBottom: "7px solid #1565c0",
+                  }}
+                />
+                IV OV
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className="inline-block"
+                  style={{
+                    width: 0,
+                    height: 0,
+                    borderLeft: "4px solid transparent",
+                    borderRight: "4px solid transparent",
+                    borderBottom: "7px solid #ef6c00",
+                  }}
+                />
+                2I TESNET
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Top-right: basemap + official catalog */}
       <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
         <div className="flex gap-0.5 rounded-md border border-border bg-card/95 p-0.5 shadow-md backdrop-blur-sm">
           {(
@@ -391,6 +501,30 @@ export function OsmEpicenterMap({
             </button>
           ))}
         </div>
+        {stationToggleAvailable && onToggleStations && (
+          <button
+            type="button"
+            onClick={onToggleStations}
+            className={cn(
+              "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[10px] font-medium shadow-md backdrop-blur-sm transition-colors",
+              showStations
+                ? "border-accent/50 bg-accent/15 text-accent"
+                : "border-border bg-card/95 text-foreground hover:bg-muted",
+            )}
+            title={
+              showStations
+                ? `Hide seismic stations (${nSta})`
+                : nSta
+                  ? `Show INGV-OV stations (${nSta})`
+                  : "Show INGV-OV stations"
+            }
+          >
+            Stations
+            {nSta > 0 && (
+              <span className="font-mono tabular-nums opacity-80">{nSta}</span>
+            )}
+          </button>
+        )}
         <a
           href={officialUrl}
           target="_blank"
