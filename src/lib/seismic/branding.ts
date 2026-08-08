@@ -9,11 +9,13 @@ export const NETWORK_SHORT = "SES";
 /** Dedicated swarm-board product titles (Vercel node monitors). */
 export const NODE_MONITOR_TITLE: Record<FocusNodeId, string> = {
   "campi-flegrei": "Campi Flegrei Monitor",
+  vesuvius: "Vesuvius Monitor",
   "tonga-kermadec": "Tonga–Kermadec Monitor",
 };
 
 export const NODE_MONITOR_SHORT: Record<FocusNodeId, string> = {
   "campi-flegrei": "CF",
+  vesuvius: "VE",
   "tonga-kermadec": "TK",
 };
 

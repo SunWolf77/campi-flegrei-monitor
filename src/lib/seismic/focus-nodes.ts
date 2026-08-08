@@ -4,8 +4,9 @@ import type { FocusNode, FocusNodeId } from "./types";
  * Sun-Earth-Sentinel focus nodes.
  * Tonga–Kermadec is node #1 (USGS authority); Campi Flegrei is node #2
  * (INGV-OV GOSSIP → FDSN authority — never dual-read USGS for this box).
+ * Vesuvius is node #3 (same INGV-OV GOSSIP family, vesuvio area).
  *
- * SES dragon ids: tonga / mediterranean (see ses-bridge.ts).
+ * SES dragon ids: tonga / mediterranean / vesuvius (see ses-bridge.ts).
  */
 export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
   "campi-flegrei": {
@@ -22,7 +23,7 @@ export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
     bbox: {
       // Catalog query box (dense GOSSIP microseismicity)
       minLat: 40.78,
-      maxLat: 40.90,
+      maxLat: 40.9,
       minLon: 14.05,
       maxLon: 14.22,
     },
@@ -58,6 +59,54 @@ export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
       officialMapUrl: "https://terremoti.ov.ingv.it/gossip/flegrei/",
     },
     depthRangeKm: { shallow: 1.5, deep: 5 },
+  },
+  vesuvius: {
+    id: "vesuvius",
+    name: "Vesuvius",
+    code: "VE",
+    networkOrder: 3,
+    network: "sun-earth-sentinel",
+    description:
+      "Mount Vesuvius stratovolcano east of Naples. INGV–Osservatorio Vesuviano GOSSIP (vesuvio area) is the exclusive dense local catalog. Same INGV-family authority as Campi Flegrei — never dual-read USGS for this box.",
+    region: "Campania, Italy",
+    provider: "gossip",
+    fallbackProvider: "ingv",
+    bbox: {
+      // Catalog query box around the cone + proximal slopes
+      minLat: 40.78,
+      maxLat: 40.86,
+      minLon: 14.38,
+      maxLon: 14.48,
+    },
+    center: { lat: 40.821, lon: 14.426 },
+    mapPad: 0.008,
+    mapView: {
+      minLat: 40.8,
+      maxLat: 40.84,
+      minLon: 14.4,
+      maxLon: 14.45,
+    },
+    volcano: {
+      name: "Mount Vesuvius",
+      type: "Stratovolcano (Somma–Vesuvius complex)",
+      statusNote:
+        "Alert level green (baseline). Seismicity is typically very shallow and low-energy, concentrated under the crater and upper cone. Observational monitoring only — not a forecast product.",
+      outline: [
+        [14.4, 40.81],
+        [14.41, 40.825],
+        [14.42, 40.835],
+        [14.435, 40.838],
+        [14.45, 40.832],
+        [14.455, 40.82],
+        [14.45, 40.808],
+        [14.435, 40.802],
+        [14.42, 40.8],
+        [14.41, 40.805],
+        [14.4, 40.81],
+      ],
+      officialMapUrl: "https://terremoti.ov.ingv.it/gossip/vesuvio/",
+    },
+    depthRangeKm: { shallow: 1.0, deep: 4 },
   },
   "tonga-kermadec": {
     id: "tonga-kermadec",
