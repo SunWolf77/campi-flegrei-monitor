@@ -52,7 +52,7 @@ export type BBox = {
 
 export type GeoPoint = { lat: number; lon: number };
 
-export type FocusNodeId = "campi-flegrei" | "tonga-kermadec";
+export type FocusNodeId = "campi-flegrei" | "vesuvius" | "tonga-kermadec";
 
 export type FocusNode = {
   id: FocusNodeId;
@@ -80,24 +80,35 @@ export type FocusNode = {
     type: string;
     /** Static context — live alert comes from operational bulletins when wired. */
     statusNote: string;
-    /** Approximate caldera / edifice outline (closed ring of [lon, lat]). */
+    /** Optional outline polygon [lon, lat][] for map overlay */
     outline?: [number, number][];
-    /** Official local catalog map (GOSSIP Localizzazioni Sismiche). */
     officialMapUrl?: string;
   };
-  /** Typical shallow seismogenic zone top/bottom for depth coloring. */
+  /** Depth colour scale anchors (km) for this node */
   depthRangeKm: { shallow: number; deep: number };
 };
 
-export type QueryWindow = {
-  start: Date;
-  end: Date;
-  minMagnitude?: number;
-  limit?: number;
+export type SwarmCluster = {
+  id: string;
+  count: number;
+  start: number;
+  end: number;
+  centroid: GeoPoint;
+  meanDepthKm: number;
+  maxMagnitude: number | null;
+  eventIds: string[];
+  topEvents: SwarmEventChip[];
 };
 
-export type SeismicQuery = QueryWindow & {
-  node: FocusNode;
+export type SwarmAnalysis = {
+  active: SwarmCluster | null;
+  clusters: SwarmCluster[];
+  rate1h: number;
+  rate6h: number;
+  rate24h: number;
+  meanDepthKm: number;
+  maxMagnitude: number | null;
+  hourlyBins: { t: number; n: number }[];
 };
 
 export type FetchResult = {
@@ -108,59 +119,14 @@ export type FetchResult = {
   count: number;
   window: { start: string; end: string };
   nodeId: FocusNodeId;
-  /** Authority family that produced this result (never mixed). */
-  authority?: "ingv-family" | "usgs-family";
-  /** Providers attempted (for feed health; not dual-read merge). */
+  authority?: string;
   attempted?: SeismicProviderId[];
 };
 
-export type SwarmCluster = {
-  id: string;
-  start: number;
-  end: number;
-  /** All member ids — resolve against catalog; do not nest full events in SSR. */
-  eventIds: string[];
-  /** Top chips for UI (max 8). */
-  topEvents: SwarmEventChip[];
-  count: number;
-  maxMag: number;
-  maxMagEvent: SwarmEventChip;
-  meanDepthKm: number;
-  medianDepthKm: number;
-  depthRangeKm: [number, number];
-  centroid: GeoPoint;
-  /** Cumulative energy proxy relative to M3 baseline. */
-  energyProxy: number;
-  /** Events per hour within the cluster window. */
-  ratePerHour: number;
-  durationHours: number;
-  isActive: boolean;
+export type SeismicQuery = {
+  node: FocusNode;
+  start: Date;
+  end: Date;
+  minMagnitude?: number;
+  limit?: number;
 };
-
-export type SwarmAnalysis = {
-  clusters: SwarmCluster[];
-  active: SwarmCluster | null;
-  rate24h: number;
-  rate6h: number;
-  rate1h: number;
-  maxMagWindow: number;
-  meanDepthKm: number;
-  shallowFraction: number; // depth < 3 km
-  cumulativeEnergy: number;
-  hourlyBins: { t: number; count: number; maxMag: number; meanDepth: number }[];
-};
-
-/** Resolve cluster members from the top-level catalog by id. */
-export function resolveClusterEvents(
-  cluster: SwarmCluster | null | undefined,
-  catalog: QuakeEvent[],
-): QuakeEvent[] {
-  if (!cluster?.eventIds?.length || !catalog?.length) return [];
-  const byId = new Map(catalog.map((e) => [e.id, e]));
-  const out: QuakeEvent[] = [];
-  for (const id of cluster.eventIds) {
-    const e = byId.get(id);
-    if (e) out.push(e);
-  }
-  return out;
-}
