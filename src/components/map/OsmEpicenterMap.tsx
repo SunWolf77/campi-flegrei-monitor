@@ -25,6 +25,7 @@ import {
   stationColor,
   type SeismicStation,
 } from "@/lib/seismic/stations";
+import { getBasemapPref, setBasemapPref } from "@/lib/ui/prefs";
 
 export type MapColorMode = "time" | "magnitude" | "depth";
 
@@ -78,9 +79,14 @@ function stationTriangleIcon(
   });
 }
 
+/** Resolve initial basemap: localStorage preference → hard default (satellite 2D). */
+function resolveBasemap(_nodeId: string): BasemapKind {
+  return getBasemapPref() ?? defaultBasemapForNode(_nodeId);
+}
+
 /**
  * Real basemap + epicenter circles + optional INGV station layer.
- * Satellite default for TK (ocean arc); Voyager default for CF/VE (land volcano).
+ * Opens in satellite 2D by default; Sat / Map / Dark toggle persists via localStorage.
  */
 export function OsmEpicenterMap({
   node,
@@ -113,13 +119,16 @@ export function OsmEpicenterMap({
   stationsRef.current = stations;
   showStationsRef.current = showStations;
 
-  const [basemap, setBasemap] = useState<BasemapKind>(() =>
-    defaultBasemapForNode(node.id),
+  const [basemap, setBasemapState] = useState<BasemapKind>(() =>
+    resolveBasemap(node.id),
   );
+  const basemapRef = useRef(basemap);
+  basemapRef.current = basemap;
 
-  useEffect(() => {
-    setBasemap(defaultBasemapForNode(node.id));
-  }, [node.id]);
+  function selectBasemap(kind: BasemapKind) {
+    setBasemapState(kind);
+    setBasemapPref(kind);
+  }
 
   const tRange = useMemo(() => {
     if (events.length === 0) {
@@ -142,6 +151,7 @@ export function OsmEpicenterMap({
     const mode = colorModeRef.current;
     const n = nodeRef.current;
     const { tMin, tMax } = tRangeRef.current;
+    const bm = basemapRef.current;
 
     group.clearLayers();
 
@@ -162,7 +172,7 @@ export function OsmEpicenterMap({
       const isSel = ev.id === selectedRef.current;
       const isBig = magValue(ev.magnitude, 0) >= 4;
       const stroke =
-        basemap === "satellite" || basemap === "dark"
+        bm === "satellite" || bm === "dark"
           ? isSel
             ? "#ffffff"
             : isBig
@@ -192,10 +202,7 @@ export function OsmEpicenterMap({
       circle.bindTooltip(
         `<div style="font:12px/1.35 ui-sans-serif,system-ui">
           <strong style="font-family:ui-monospace,monospace">${magLabel}</strong><br/>
-          ${formatDepth(ev.depthKm)} · ${formatRelativeTime(ev.time)}<br/>
-          <span style="opacity:.75">${ev.latitude.toFixed(4)}, ${ev.longitude.toFixed(4)}</span><br/>
-          <span style="opacity:.7">${formatDateTime(ev.time)}</span>
-        </div>`,
+          ${formatDepth(ev.depthKm)} · ${formatRelativeTime(ev.time)}</div>`,
         { direction: "top", opacity: 0.95, className: "eq-tooltip" },
       );
 
@@ -283,7 +290,7 @@ export function OsmEpicenterMap({
       });
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      const kind = defaultBasemapForNode(node.id);
+      const kind = basemapRef.current;
       const tiles = L.tileLayer(basemapTileUrl(kind), {
         ...basemapTileOptions(kind),
         attribution: basemapTileOptions(kind).attribution + catalogAttribution(node),
@@ -478,7 +485,11 @@ export function OsmEpicenterMap({
       </div>
 
       <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
-        <div className="flex gap-0.5 rounded-md border border-border bg-card/95 p-0.5 shadow-md backdrop-blur-sm">
+        <div
+          className="flex gap-0.5 rounded-md border border-border bg-card/95 p-0.5 shadow-md backdrop-blur-sm"
+          role="group"
+          aria-label="Map basemap"
+        >
           {(
             [
               ["satellite", "Sat"],
@@ -489,13 +500,20 @@ export function OsmEpicenterMap({
             <button
               key={k}
               type="button"
-              onClick={() => setBasemap(k)}
+              onClick={() => selectBasemap(k)}
               className={cn(
                 "rounded px-1.5 py-0.5 text-[10px] font-medium",
                 basemap === k
                   ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
+              title={
+                k === "satellite"
+                  ? "Satellite 2D (Esri)"
+                  : k === "voyager"
+                    ? "Street map (CARTO Voyager)"
+                    : "Dark map (CARTO)"
+              }
             >
               {label}
             </button>
