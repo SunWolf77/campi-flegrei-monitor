@@ -35,6 +35,8 @@ const THRESHOLDS: Record<
 > = {
   // Dense GOSSIP microseismicity — higher bar
   "campi-flegrei": { intense: 15, high: 8, elevated: 3, low: 1 },
+  // Vesuvius cone — lower baseline rate than CF unrest
+  vesuvius: { intense: 8, high: 4, elevated: 1.5, low: 0.5 },
   // Tonga tectonic swarm (from original single-file monitor)
   "tonga-kermadec": { intense: 4, high: 2, elevated: 0.8, low: 0.3 },
 };
@@ -42,6 +44,7 @@ const THRESHOLDS: Record<
 /** Mag class used for "swarm-like signature" notes. */
 const NOTE_MAG: Record<FocusNodeId, number> = {
   "campi-flegrei": 3.0,
+  vesuvius: 2.5,
   "tonga-kermadec": 5.0,
 };
 

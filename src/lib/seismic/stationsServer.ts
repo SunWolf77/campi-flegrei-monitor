@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getFocusNode } from "./focus-nodes";
 import type { FocusNodeId } from "./types";
+import { isIngvGossipNode } from "./authority";
 import {
   fetchIngvStations,
   filterMapStations,
@@ -19,15 +20,15 @@ export async function loadStationsPayload(
   nodeId: FocusNodeId = "campi-flegrei",
 ): Promise<StationsPayload> {
   const node = getFocusNode(nodeId);
-  // Station layer is INGV FDSN — meaningful for Campi Flegrei (Italy).
+  // Station layer is INGV FDSN — meaningful for Campania volcano nodes (CF + VE).
   // TK / Pacific nodes get empty set (no false global stations).
-  if (nodeId !== "campi-flegrei") {
+  if (!isIngvGossipNode(nodeId)) {
     return {
       stations: [],
       sourceUrl: "",
       fetchedAt: Date.now(),
       nodeId,
-      error: "Station layer is INGV-OV only (Campi Flegrei).",
+      error: "Station layer is INGV-OV only (Campi Flegrei / Vesuvius).",
     };
   }
 
