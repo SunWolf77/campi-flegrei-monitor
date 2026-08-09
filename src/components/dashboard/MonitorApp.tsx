@@ -301,7 +301,8 @@ export function MonitorApp({ initial }: Props) {
   );
 
   const focusCluster = useCallback((cluster: SwarmCluster) => {
-    if (cluster?.maxMagEvent?.id) setSelectedId(cluster.maxMagEvent.id);
+    const topId = cluster?.topEvents?.[0]?.id;
+    if (topId) setSelectedId(topId);
     setTab("map");
   }, []);
 
@@ -373,22 +374,15 @@ export function MonitorApp({ initial }: Props) {
               <div className="flex min-w-0 items-center gap-1.5">
                 <Satellite className="size-3.5 shrink-0 text-accent" aria-hidden />
                 <h1 className="min-w-0 text-[13px] font-semibold leading-snug tracking-tight sm:text-[15px]">
-                  <span className="block truncate sm:inline">
-                    {nodeMonitorTitle(nodeId)}
-                  </span>
+                  <span className="block truncate sm:inline">{nodeMonitorTitle(nodeId)}</span>
                 </h1>
                 {quiet && (
-                  <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
-                    Quiet
-                  </Badge>
+                  <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">Quiet</Badge>
                 )}
               </div>
               {!headerCollapsed && (
                 <p className="mt-0.5 truncate pl-5 text-[10px] leading-tight text-muted-foreground sm:text-[11px]">
-                  {nodeMonitorSubtitle(
-                    node.networkOrder,
-                    authority.label.split("(")[0]?.trim() || authority.label,
-                  )}
+                  {nodeMonitorSubtitle(node.networkOrder, authority.label.split("(")[0]?.trim() || authority.label)}
                 </p>
               )}
               {headerCollapsed && (
@@ -406,65 +400,19 @@ export function MonitorApp({ initial }: Props) {
                 onDismissFromSes={() => setFromSes(false)}
               />
               <div className="flex items-center gap-0.5">
-                <Button
-                  type="button"
-                  variant={headerCollapsed ? "default" : "ghost"}
-                  size="sm"
-                  className="h-8 w-8 px-0"
-                  onClick={toggleHeader}
-                  title={headerCollapsed ? "Expand header" : "Collapse header — more map"}
-                  aria-expanded={!headerCollapsed}
-                  aria-label={headerCollapsed ? "Expand header" : "Collapse header"}
-                >
-                  {headerCollapsed ? (
-                    <ChevronDown className="size-3.5" />
-                  ) : (
-                    <ChevronUp className="size-3.5" />
-                  )}
+                <Button type="button" variant={headerCollapsed ? "default" : "ghost"} size="sm" className="h-8 w-8 px-0" onClick={toggleHeader} title={headerCollapsed ? "Expand header" : "Collapse header"} aria-expanded={!headerCollapsed}>
+                  {headerCollapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}
                 </Button>
-                <ShareMenu
-                  ctx={{
-                    nodeId,
-                    windowKey,
-                    eii: continuum.eii,
-                    rpam: continuum.rpam,
-                    rate6h: swarm.rate6h,
-                    eventCount: events.length,
-                    largestMag: largest ? magValue(largest.magnitude) : null,
-                  }}
-                />
+                <ShareMenu ctx={{ nodeId, windowKey, eii: continuum.eii, rpam: continuum.rpam, rate6h: swarm.rate6h, eventCount: events.length, largestMag: largest ? magValue(largest.magnitude) : null }} />
                 {!headerCollapsed && <ThemeToggle />}
-                <Button
-                  variant={quiet ? "default" : "ghost"}
-                  size="sm"
-                  onClick={toggleQuiet}
-                  className="h-8 w-8 px-0"
-                  title={
-                    quiet
-                      ? "Quiet on — library links hidden (tap to expand)"
-                      : "Quiet mode — hide secondary links"
-                  }
-                >
+                <Button variant={quiet ? "default" : "ghost"} size="sm" onClick={toggleQuiet} className="h-8 w-8 px-0" title={quiet ? "Quiet on" : "Quiet mode"}>
                   {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void load()}
-                  disabled={loading}
-                  className="h-8 w-8 px-0"
-                  title="Refresh"
-                >
+                <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading} className="h-8 w-8 px-0" title="Refresh">
                   <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
                 </Button>
                 {!headerCollapsed && (
-                  <Button
-                    variant={autoRefresh ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setAutoRefresh((v) => !v)}
-                    className="h-8 min-w-9 px-1.5 font-mono text-[10px]"
-                    title="Auto-refresh"
-                  >
+                  <Button variant={autoRefresh ? "default" : "outline"} size="sm" onClick={() => setAutoRefresh((v) => !v)} className="h-8 min-w-9 px-1.5 font-mono text-[10px]" title="Auto-refresh">
                     {autoRefresh ? "60s" : "Off"}
                   </Button>
                 )}
@@ -472,60 +420,27 @@ export function MonitorApp({ initial }: Props) {
             </div>
           </div>
 
-          <PulseStrip
-            continuum={continuum}
-            intensity={intensity}
-            newSincePoll={newSincePoll}
-            rate6h={swarm.rate6h}
-            className="w-full min-w-0 border-0 bg-transparent px-0 py-0"
-          />
+          <PulseStrip continuum={continuum} intensity={intensity} newSincePoll={newSincePoll} rate6h={swarm.rate6h} className="w-full min-w-0 border-0 bg-transparent px-0 py-0" />
 
           {!headerCollapsed && (
             <div className="flex flex-wrap items-center gap-1 pt-0.5">
               <div className="flex gap-0.5 overflow-x-auto">
                 {WINDOWS.map((w) => (
-                  <button
-                    key={w.key}
-                    type="button"
-                    onClick={() => setWindowKey(w.key)}
-                    className={cn(
-                      "min-h-7 min-w-8 rounded-md px-1.5 font-mono text-[11px] tabular-nums transition-colors",
-                      windowKey === w.key
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-secondary",
-                    )}
-                  >
+                  <button key={w.key} type="button" onClick={() => setWindowKey(w.key)} className={cn("min-h-7 min-w-8 rounded-md px-1.5 font-mono text-[11px] tabular-nums transition-colors", windowKey === w.key ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-secondary")}>
                     {w.label}
                   </button>
                 ))}
               </div>
-
-              <button
-                type="button"
-                onClick={() => setFiltersOpen((v) => !v)}
-                className={cn(
-                  "inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium",
-                  filtersOpen || filterActive
-                    ? "border-accent/40 bg-accent/10 text-accent"
-                    : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
-                )}
-              >
+              <button type="button" onClick={() => setFiltersOpen((v) => !v)} className={cn("inline-flex min-h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium", filtersOpen || filterActive ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground")}>
                 <SlidersHorizontal className="size-3" />
                 <span className="hidden sm:inline">Filters</span>
                 {filterActive && (
                   <span className="font-mono text-[10px]">
                     {minMag > 0 ? `M≥${minMag}` : ""}
-                    {isIngvGossipNode(nodeId) && maxDepthKm != null && maxDepthKm !== 8
-                      ? ` Z≤${maxDepthKm}`
-                      : ""}
+                    {isIngvGossipNode(nodeId) && maxDepthKm != null && maxDepthKm !== 8 ? ` Z≤${maxDepthKm}` : ""}
                   </span>
                 )}
-                <ChevronDown
-                  className={cn(
-                    "size-3 opacity-70 transition-transform",
-                    filtersOpen && "rotate-180",
-                  )}
-                />
+                <ChevronDown className={cn("size-3 opacity-70 transition-transform", filtersOpen && "rotate-180")} />
               </button>
             </div>
           )}
@@ -533,17 +448,7 @@ export function MonitorApp({ initial }: Props) {
           {headerCollapsed && (
             <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
               {WINDOWS.map((w) => (
-                <button
-                  key={w.key}
-                  type="button"
-                  onClick={() => setWindowKey(w.key)}
-                  className={cn(
-                    "min-h-6 shrink-0 rounded px-1.5 font-mono text-[10px] tabular-nums",
-                    windowKey === w.key
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground",
-                  )}
-                >
+                <button key={w.key} type="button" onClick={() => setWindowKey(w.key)} className={cn("min-h-6 shrink-0 rounded px-1.5 font-mono text-[10px] tabular-nums", windowKey === w.key ? "bg-muted text-foreground" : "text-muted-foreground")}>
                   {w.label}
                 </button>
               ))}
@@ -553,42 +458,18 @@ export function MonitorApp({ initial }: Props) {
           {!headerCollapsed && filtersOpen && (
             <div className="flex flex-col gap-1.5 rounded-md border border-border bg-secondary/25 px-2 py-1.5 sm:flex-row sm:flex-wrap sm:items-center">
               <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Min M
-                </span>
+                <span className="mr-1 text-[10px] uppercase tracking-wider text-muted-foreground">Min M</span>
                 {[0, 1, 1.5, 2, 2.5, 3].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMinMag(m)}
-                    className={cn(
-                      "min-h-7 min-w-8 rounded border px-1.5 font-mono text-[11px] tabular-nums",
-                      minMag === m
-                        ? "border-fg/30 bg-muted text-foreground"
-                        : "border-border text-muted-foreground hover:bg-card",
-                    )}
-                  >
+                  <button key={m} type="button" onClick={() => setMinMag(m)} className={cn("min-h-7 min-w-8 rounded border px-1.5 font-mono text-[11px] tabular-nums", minMag === m ? "border-fg/30 bg-muted text-foreground" : "border-border text-muted-foreground hover:bg-card")}>
                     {m === 0 ? "All" : m.toFixed(1)}
                   </button>
                 ))}
               </div>
               {isIngvGossipNode(nodeId) && (
                 <div className="flex flex-wrap items-center gap-1">
-                  <span className="mr-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Depth
-                  </span>
+                  <span className="mr-1 text-[10px] uppercase tracking-wider text-muted-foreground">Depth</span>
                   {DEPTH_GATES.map((g) => (
-                    <button
-                      key={g.label}
-                      type="button"
-                      onClick={() => setMaxDepthKm(g.km)}
-                      className={cn(
-                        "min-h-7 rounded border px-1.5 font-mono text-[11px] tabular-nums",
-                        maxDepthKm === g.km
-                          ? "border-fg/30 bg-muted text-foreground"
-                          : "border-border text-muted-foreground hover:bg-card",
-                      )}
-                    >
+                    <button key={g.label} type="button" onClick={() => setMaxDepthKm(g.km)} className={cn("min-h-7 rounded border px-1.5 font-mono text-[11px] tabular-nums", maxDepthKm === g.km ? "border-fg/30 bg-muted text-foreground" : "border-border text-muted-foreground hover:bg-card")}>
                       {g.label}
                     </button>
                   ))}
@@ -602,32 +483,16 @@ export function MonitorApp({ initial }: Props) {
       <main className="mx-auto max-w-[1400px] min-w-0 overflow-x-hidden px-2 py-1.5 sm:px-4 sm:py-2">
         {loading && events.length === 0 && (
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground">
-            <RefreshCw className="size-3.5 animate-spin" />
-            Loading catalog…
+            <RefreshCw className="size-3.5 animate-spin" /> Loading catalog…
           </div>
         )}
 
         {tab !== "map" && tab !== "supt" && (
           <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
             <Kpi label="Events" value={String(data?.count ?? events.length)} sub={windowKey} />
-            <Kpi
-              label="Largest"
-              value={largest ? `M${formatMag(largest.magnitude)}` : "—"}
-              sub={largest ? formatRelativeTime(largest.time) : "—"}
-              danger={!!largest && magValue(largest.magnitude) >= 4}
-            />
-            <Kpi
-              label="1h / 6h"
-              value={`${swarm.rate1h} / ${swarm.rate6h}`}
-              sub={`${((swarm as { shallowFraction?: number }).shallowFraction ?? 0) * 100}% shallow`.replace('0%', '0%')}
-              warn={!!swarm.active}
-            />
-            <Kpi
-              label="Mean Z"
-              value={events.length ? `${swarm.meanDepthKm.toFixed(1)} km` : "—"}
-              sub={swarm.active ? "swarm on" : `${swarm.clusters?.length ?? 0} clusters`}
-              warn={!!swarm.active}
-            />
+            <Kpi label="Largest" value={largest ? `M${formatMag(largest.magnitude)}` : "—"} sub={largest ? formatRelativeTime(largest.time) : "—"} danger={!!largest && magValue(largest.magnitude) >= 4} />
+            <Kpi label="1h / 6h" value={`${swarm.rate1h} / ${swarm.rate6h}`} sub={`${swarm.rate24h} / 24h`} warn={!!swarm.active} />
+            <Kpi label="Mean Z" value={events.length ? `${swarm.meanDepthKm.toFixed(1)} km` : "—"} sub={swarm.active ? "swarm on" : `${swarm.clusters?.length ?? 0} clusters`} warn={!!swarm.active} />
           </section>
         )}
 
@@ -642,19 +507,8 @@ export function MonitorApp({ initial }: Props) {
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={cn(
-                  "inline-flex min-h-9 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-medium transition-colors sm:px-3",
-                  tab === t.key
-                    ? "border-accent text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className="size-3.5" />
-                {t.label}
+              <button key={t.key} type="button" onClick={() => setTab(t.key)} className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-medium transition-colors sm:px-3", tab === t.key ? "border-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                <Icon className="size-3.5" />{t.label}
               </button>
             );
           })}
@@ -664,24 +518,10 @@ export function MonitorApp({ initial }: Props) {
           <div className="map-shell @container/map flex flex-col gap-2">
             <Card className="overflow-hidden border-0 shadow-none sm:border sm:shadow-sm">
               <CardHeader className="flex-row items-center justify-between space-y-0 px-1 py-1 sm:px-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-                    {events.length.toLocaleString()} · {windowKey}
-                  </span>
-                </div>
+                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{events.length.toLocaleString()} · {windowKey}</span>
                 <div className="flex gap-0.5">
                   {(["time", "depth", "magnitude"] as MapColorMode[]).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setColorMode(m)}
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[10px] uppercase",
-                        colorMode === m
-                          ? "bg-muted font-medium text-foreground"
-                          : "text-muted-foreground hover:bg-secondary",
-                      )}
-                    >
+                    <button key={m} type="button" onClick={() => setColorMode(m)} className={cn("rounded px-1.5 py-0.5 text-[10px] uppercase", colorMode === m ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-secondary")}>
                       {m === "magnitude" ? "mag" : m}
                     </button>
                   ))}
@@ -689,27 +529,14 @@ export function MonitorApp({ initial }: Props) {
               </CardHeader>
               <CardContent className="p-0 sm:p-1 sm:pt-0">
                 <div className="min-h-[280px] w-full" style={{ height: mapHeightPx }}>
-                  <OsmEpicenterMap
-                    node={node}
-                    events={events}
-                    selectedId={selectedId}
-                    onSelect={onSelectEvent}
-                    colorMode={colorMode}
-                    stations={stations}
-                    showStations={showStations}
-                    onToggleStations={() => setShowStations((v) => !v)}
-                  />
+                  <OsmEpicenterMap node={node} events={events} selectedId={selectedId} onSelect={onSelectEvent} colorMode={colorMode} stations={stations} showStations={showStations} onToggleStations={() => setShowStations((v) => !v)} />
                 </div>
               </CardContent>
             </Card>
             {!quiet && (
               <details className="rounded-lg border border-border bg-card">
-                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">
-                  Observation links
-                </summary>
-                <div className="border-t border-border p-2">
-                  <ObservationLinks nodeId={nodeId} />
-                </div>
+                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">Observation links</summary>
+                <div className="border-t border-border p-2"><ObservationLinks nodeId={nodeId} /></div>
               </details>
             )}
           </div>
@@ -722,9 +549,7 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
-        {tab === "depth" && (
-          <DepthProfile events={events} node={node} selectedId={selectedId} onSelect={(id) => setSelectedId(id)} />
-        )}
+        {tab === "depth" && <DepthProfile events={events} node={node} selectedId={selectedId} onSelect={(id) => setSelectedId(id)} />}
         {tab === "timeline" && <TimelineCharts events={events} swarm={swarm} />}
         {tab === "swarm" && (
           <div className={cn("grid gap-3", quiet && nodeId !== "tonga-kermadec" ? "" : "lg:grid-cols-[1.25fr_1fr]")}>
@@ -751,7 +576,7 @@ export function MonitorApp({ initial }: Props) {
             </section>
             {!quiet && (
               <details className="rounded-lg border border-border bg-card">
-                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">Context library (Pacific · links · Notion)</summary>
+                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">Context library</summary>
                 <div className="grid gap-3 border-t border-border p-3 lg:grid-cols-2">
                   <PacificNodePanel />
                   <ObservationLinks nodeId={nodeId} />
@@ -782,31 +607,9 @@ export function MonitorApp({ initial }: Props) {
   );
 }
 
-function Kpi({
-  label,
-  value,
-  sub,
-  danger,
-  warn,
-  compact,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  danger?: boolean;
-  warn?: boolean;
-  compact?: boolean;
-}) {
+function Kpi({ label, value, sub, danger, warn, compact }: { label: string; value: string; sub?: string; danger?: boolean; warn?: boolean; compact?: boolean }) {
   return (
-    <div
-      className={cn(
-        "rounded-md border",
-        compact ? "px-1.5 py-1 sm:px-2" : "px-2.5 py-1.5",
-        danger && "border-destructive/40 bg-destructive/5",
-        warn && !danger && "border-warn/35 bg-warn/5",
-        !danger && !warn && "border-border bg-card",
-      )}
-    >
+    <div className={cn("rounded-md border", compact ? "px-1.5 py-1 sm:px-2" : "px-2.5 py-1.5", danger && "border-destructive/40 bg-destructive/5", warn && !danger && "border-warn/35 bg-warn/5", !danger && !warn && "border-border bg-card")}>
       <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={cn("font-mono font-semibold tabular-nums leading-tight", compact ? "text-sm sm:text-base" : "text-base sm:text-lg")}>{value}</div>
       {sub && !compact && <div className="truncate text-[10px] text-muted-foreground">{sub}</div>}
