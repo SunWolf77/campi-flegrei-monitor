@@ -30,6 +30,12 @@ export const SUPT_LAYER_COLORS = {
   sigmaNormal: "#1565c0",
 } as const;
 
+/** Default fitBounds maxZoom — CF/VE stay at caldera/cone readability. */
+function defaultMapMaxZoom(nodeId: string): number {
+  if (nodeId === "campi-flegrei" || nodeId === "vesuvius") return 13;
+  return 8;
+}
+
 type Props = {
   node: FocusNode;
   events: QuakeEvent[];
@@ -114,7 +120,7 @@ export function SuptMap({
       [view.minLat - pad, view.minLon - pad],
       [view.maxLat + pad, view.maxLon + pad],
     );
-    const maxZoom = node.id === "campi-flegrei" ? 13 : 8;
+    const maxZoom = defaultMapMaxZoom(node.id);
     map.fitBounds(bounds, { padding: [16, 16], maxZoom, animate: true });
   }, [node]);
 
@@ -426,7 +432,7 @@ export function SuptMap({
         ),
         {
           padding: [16, 16],
-          maxZoom: node.id === "campi-flegrei" ? 13 : 8,
+          maxZoom: defaultMapMaxZoom(node.id),
         },
       );
 
@@ -467,13 +473,12 @@ export function SuptMap({
     void drawRef.current();
   }, [events, planes, stressNodes, lineaments, migration, stressField, selectedNodeId, tRange, layers]);
 
-  const fittedFabric = useRef(false);
+  // Default frame stays on node.mapView (Home). Auto-fit-to-fabric was
+  // stealing Vesuvius open into a crater-tight zoom; press Frame (G) for fabric.
+  // Re-home when the focus node changes so VE/CF/TK each land on their mapView.
   useEffect(() => {
-    if (fittedFabric.current) return;
-    if (stressNodes.length < 1) return;
-    fittedFabric.current = true;
-    void fitToFabric();
-  }, [stressNodes, fitToFabric]);
+    void goHome();
+  }, [node.id, goHome]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -514,7 +519,8 @@ export function SuptMap({
             variant="secondary"
             className="h-8 gap-1 border border-border bg-card/95 px-2 text-[11px] shadow-md backdrop-blur-sm"
             onClick={() => void goHome()}
-            title="Home (H) — focus caldera"
+            title="Home (H) — default frame"
+
           >
             <Home className="size-3.5" />
             Home

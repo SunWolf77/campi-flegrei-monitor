@@ -6,6 +6,12 @@ import type { FocusNode, FocusNodeId } from "./types";
  * (INGV-OV GOSSIP → FDSN authority — never dual-read USGS for this box).
  * Vesuvius is node #3 (same INGV-OV GOSSIP family, vesuvio area).
  *
+ * CF and VE share authority family and board stack, but stay separate focus
+ * nodes: different volcanic systems (restless caldera vs stratovolcano),
+ * separate GOSSIP areas (flegrei vs vesuvio), distinct spatial scale / depth
+ * regimes, and independent SUPT fabric frames. Merging boxes would mix
+ * unrelated swarms and blur detective stress/fracture geometry.
+ *
  * SES dragon ids: tonga / mediterranean / vesuvius (see ses-bridge.ts).
  */
 export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
@@ -67,24 +73,30 @@ export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
     networkOrder: 3,
     network: "sun-earth-sentinel",
     description:
-      "Mount Vesuvius stratovolcano east of Naples. INGV–Osservatorio Vesuviano GOSSIP (vesuvio area) is the exclusive dense local catalog. Same INGV-family authority as Campi Flegrei — never dual-read USGS for this box.",
+      "Mount Vesuvius (Somma–Vesuvius) stratovolcano east of Naples — a different system from the Campi Flegrei caldera. Exclusive dense catalog is INGV–OV GOSSIP vesuvio area (same authority family as CF, separate spatial fabric). Never dual-read USGS for this box.",
     region: "Campania, Italy",
     provider: "gossip",
     fallbackProvider: "ingv",
     bbox: {
-      // Catalog query box around the cone + proximal slopes
+      // Catalog: cone + proximal slopes (park / towns still in mapView only)
       minLat: 40.78,
       maxLat: 40.86,
-      minLon: 14.38,
-      maxLon: 14.48,
+      minLon: 14.37,
+      maxLon: 14.49,
     },
     center: { lat: 40.821, lon: 14.426 },
-    mapPad: 0.008,
+    mapPad: 0.005,
+    /**
+     * Default SUPT / map frame — full edifice + proximal towns
+     * (Portici–Torre del Greco coast · Ottaviano · S. Giuseppe Vesuviano · Terzigno).
+     * Wider than the crater-only box so fracture rays and lineaments read in context.
+     * Frame (G) still zooms to fabric; Home (H) returns here.
+     */
     mapView: {
-      minLat: 40.8,
-      maxLat: 40.84,
-      minLon: 14.4,
-      maxLon: 14.45,
+      minLat: 40.785,
+      maxLat: 40.86,
+      minLon: 14.35,
+      maxLon: 14.51,
     },
     volcano: {
       name: "Mount Vesuvius",
@@ -92,17 +104,18 @@ export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
       statusNote:
         "Alert level green (baseline). Seismicity is typically very shallow and low-energy, concentrated under the crater and upper cone. Observational monitoring only — not a forecast product.",
       outline: [
-        [14.4, 40.81],
-        [14.41, 40.825],
-        [14.42, 40.835],
-        [14.435, 40.838],
-        [14.45, 40.832],
-        [14.455, 40.82],
-        [14.45, 40.808],
-        [14.435, 40.802],
-        [14.42, 40.8],
-        [14.41, 40.805],
-        [14.4, 40.81],
+        [14.395, 40.808],
+        [14.405, 40.822],
+        [14.415, 40.832],
+        [14.43, 40.838],
+        [14.445, 40.835],
+        [14.455, 40.825],
+        [14.458, 40.812],
+        [14.45, 40.802],
+        [14.435, 40.797],
+        [14.415, 40.798],
+        [14.4, 40.803],
+        [14.395, 40.808],
       ],
       officialMapUrl: "https://terremoti.ov.ingv.it/gossip/vesuvio/",
     },
