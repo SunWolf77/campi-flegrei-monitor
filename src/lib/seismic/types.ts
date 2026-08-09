@@ -130,3 +130,20 @@ export type SeismicQuery = {
   minMagnitude?: number;
   limit?: number;
 };
+
+/**
+ * Resolve a swarm cluster's eventIds against a catalog sample.
+ * Used by SUPT fabric / detective so cluster analysis works on full QuakeEvent
+ * objects without embedding them in the RPC payload.
+ */
+export function resolveClusterEvents(
+  cluster: SwarmCluster | null | undefined,
+  sample: QuakeEvent[],
+): QuakeEvent[] {
+  if (!cluster || !Array.isArray(cluster.eventIds) || cluster.eventIds.length === 0) {
+    return [];
+  }
+  if (!Array.isArray(sample) || sample.length === 0) return [];
+  const wanted = new Set(cluster.eventIds);
+  return sample.filter((e) => wanted.has(e.id));
+}
