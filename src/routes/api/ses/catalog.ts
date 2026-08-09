@@ -43,7 +43,8 @@ export const Route = createFileRoute("/api/ses/catalog")({
           const catalog = await loadCatalogPayload({
             nodeId,
             window: windowKey,
-            maxDepthKm: nodeId === "campi-flegrei" ? 8 : undefined,
+            maxDepthKm:
+              nodeId === "campi-flegrei" || nodeId === "vesuvius" ? 8 : undefined,
           });
           const collection = toSesEqCollection(catalog.events ?? [], nodeId);
           return Response.json(
@@ -64,7 +65,9 @@ export const Route = createFileRoute("/api/ses/catalog")({
                 note:
                   nodeId === "campi-flegrei"
                     ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read."
-                    : "USGS authority for Tonga–Kermadec.",
+                    : nodeId === "vesuvius"
+                      ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read."
+                      : "USGS authority for Tonga–Kermadec.",
               },
             },
             {
