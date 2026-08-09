@@ -31,12 +31,17 @@ function windowToRange(key: WindowKey, now = Date.now()): { start: Date; end: Da
   return { start, end };
 }
 
+function isShallowItalianNode(nodeId: FocusNodeId): boolean {
+  return nodeId === "campi-flegrei" || nodeId === "vesuvius";
+}
+
 function buildSwarm(events: QuakeEvent[], nodeId: FocusNodeId): SwarmAnalysis {
   try {
+    const shallow = isShallowItalianNode(nodeId);
     return analyzeSwarmActivity(events, {
-      maxGapMs: nodeId === "campi-flegrei" ? 4 * 3_600_000 : 6 * 3_600_000,
-      maxRadiusKm: nodeId === "campi-flegrei" ? 10 : 80,
-      minEvents: nodeId === "campi-flegrei" ? 4 : 6,
+      maxGapMs: shallow ? 4 * 3_600_000 : 6 * 3_600_000,
+      maxRadiusKm: shallow ? 10 : 80,
+      minEvents: shallow ? 4 : 6,
       now: Date.now(),
     });
   } catch {
@@ -109,7 +114,7 @@ export async function loadCatalogPayload(input: CatalogQuery = {}): Promise<Cata
         ? input.maxDepthKm > 0
           ? input.maxDepthKm
           : undefined
-        : node.id === "campi-flegrei"
+        : isShallowItalianNode(node.id)
           ? 8
           : undefined;
 
