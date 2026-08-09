@@ -75,6 +75,74 @@ export function observationLinks(nodeId: FocusNodeId): ObservationLink[] {
     ];
   }
 
+  if (nodeId === "vesuvius") {
+    return [
+      {
+        id: "gossip-ve",
+        title: "INGV–OV GOSSIP map",
+        subtitle: "Official Localizzazioni Sismiche · Vesuvio",
+        href: "https://terremoti.ov.ingv.it/gossip/vesuvio/",
+        group: "authority",
+      },
+      {
+        id: "ov-status",
+        title: "Vesuvius status (OV)",
+        subtitle: "Current alert level · monthly bulletin summary",
+        href: "https://www.ov.ingv.it/index.php/stato-attuale",
+        group: "authority",
+      },
+      {
+        id: "ov-home",
+        title: "Osservatorio Vesuviano",
+        subtitle: "Operational volcano monitoring · CF / Vesuvius / Ischia",
+        href: "https://www.ov.ingv.it/",
+        group: "authority",
+      },
+      {
+        id: "ingv-cnt",
+        title: "INGV national event list",
+        subtitle: "FDSN / CNT bulletin",
+        href: "https://terremoti.ingv.it/",
+        group: "authority",
+      },
+      {
+        id: "firms-ve",
+        title: "NASA FIRMS thermal",
+        subtitle: "VIIRS/MODIS hotspot map · Vesuvius / Naples",
+        href: "https://firms.modaps.eosdis.nasa.gov/map/#d:24hrs;@14.43,40.82,11z",
+        group: "satellite",
+      },
+      {
+        id: "sentinel-ve",
+        title: "Copernicus Sentinel-2",
+        subtitle: "Browser · Vesuvius viewport",
+        href: "https://browser.dataspace.copernicus.eu/?zoom=13&lat=40.821&lng=14.426&themeId=DEFAULT-THEME&datasetId=SENTINEL-2-L2A",
+        group: "satellite",
+      },
+      {
+        id: "s1-ve",
+        title: "Sentinel-1 SAR",
+        subtitle: "Ground deformation context (InSAR-capable scenes)",
+        href: "https://browser.dataspace.copernicus.eu/?zoom=13&lat=40.821&lng=14.426&themeId=DEFAULT-THEME&datasetId=SENTINEL-1-GRD",
+        group: "satellite",
+      },
+      {
+        id: "swpc",
+        title: "NOAA SWPC dashboard",
+        subtitle: "Kp · solar wind · flares",
+        href: "https://www.swpc.noaa.gov/",
+        group: "spaceweather",
+      },
+      {
+        id: "resonanceone",
+        title: "ResonanceOne SR index",
+        subtitle: "Live Tomsk-attributed Schumann activity index",
+        href: "https://resonanceone.app/schumann-resonance-today",
+        group: "resonance",
+      },
+    ];
+  }
+
   // Tonga–Kermadec — from tonga-kermadec-node-monitor
   return [
     {
