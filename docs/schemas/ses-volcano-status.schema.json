@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://campi-flegrei-monitor.vercel.app/docs/schemas/ses-volcano-status.schema.json",
+  "title": "SES volcano status companion feed",
+  "description": "GET /api/ses/volcano — CF operational context + optional GeoNet Kermadec companion for network lattice sync. Not a forecast.",
+  "type": "object",
+  "required": [
+    "type",
+    "board",
+    "dragonId",
+    "name",
+    "ok",
+    "generatedAt",
+    "primary",
+    "resonance"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "type": { "const": "ses-volcano-status" },
+    "board": { "type": "string" },
+    "networkOrder": { "type": "integer" },
+    "dragonId": { "type": "string" },
+    "name": { "type": "string" },
+    "ok": { "type": "boolean" },
+    "generatedAt": { "type": "integer" },
+    "authority": { "type": "string" },
+    "primary": {
+      "type": "object",
+      "required": ["id", "title", "level", "acc", "activity"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "level": { "type": "integer" },
+        "acc": { "type": "string" },
+        "activity": { "type": "string" }
+      }
+    },
+    "elevatedCount": { "type": "integer", "minimum": 0 },
+    "recentChanges": { "type": "array" },
+    "resonance": {
+      "type": "object",
+      "required": ["severity", "headline", "plain"],
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["quiet", "watch", "elevated", "high"]
+        },
+        "headline": { "type": "string" },
+        "plain": { "type": "string" }
+      }
+    },
+    "href": { "type": "string", "format": "uri" },
+    "companion": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "title": { "type": "string" },
+            "level": { "type": "integer" },
+            "acc": { "type": "string" },
+            "activity": { "type": "string" },
+            "source": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://campi-flegrei-monitor.vercel.app/docs/schemas/ses-swarm-analysis.schema.json",
+  "title": "SES swarm analysis (board-internal / future hub extension)",
+  "description": "SwarmAnalysis + SwarmCluster as produced by campi-flegrei-monitor detectSwarms/analyzeSwarmActivity. Not currently embedded in GET /api/ses/catalog GeoJSON; included so SES hub can adopt the same shape if boards publish a swarm sidecar.",
+  "type": "object",
+  "required": [
+    "clusters",
+    "active",
+    "rate1h",
+    "rate6h",
+    "rate24h",
+    "maxMagWindow",
+    "meanDepthKm",
+    "shallowFraction",
+    "cumulativeEnergy",
+    "hourlyBins"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "active": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/SwarmCluster" }
+      ]
+    },
+    "clusters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SwarmCluster" }
+    },
+    "rate1h": { "type": "number" },
+    "rate6h": { "type": "number" },
+    "rate24h": { "type": "number" },
+    "maxMagWindow": {
+      "type": "number",
+      "description": "Peak magnitude in the analysis window; 0 if all N/D."
+    },
+    "meanDepthKm": { "type": "number" },
+    "shallowFraction": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Fraction of events with depth < 3 km."
+    },
+    "cumulativeEnergy": {
+      "type": "number",
+      "description": "Sum of energyProxy over events (relative units)."
+    },
+    "hourlyBins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SwarmHourlyBin" }
+    }
+  },
+  "$defs": {
+    "SwarmEventChip": {
+      "type": "object",
+      "required": ["id", "magnitude", "depthKm", "time", "magType"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "magnitude": { "type": ["number", "null"] },
+        "depthKm": { "type": "number" },
+        "time": { "type": "integer" },
+        "magType": { "type": "string" }
+      }
+    },
+    "GeoPoint": {
+      "type": "object",
+      "required": ["lat", "lon"],
+      "additionalProperties": false,
+      "properties": {
+        "lat": { "type": "number" },
+        "lon": { "type": "number" }
+      }
+    },
+    "SwarmCluster": {
+      "type": "object",
+      "required": [
+        "id",
+        "count",
+        "start",
+        "end",
+        "centroid",
+        "meanDepthKm",
+        "medianDepthKm",
+        "depthRangeKm",
+        "maxMag",
+        "maxMagEvent",
+        "eventIds",
+        "topEvents",
+        "energyProxy",
+        "ratePerHour",
+        "durationHours",
+        "isActive"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Typically swarm-{startMs}-{count}."
+        },
+        "count": { "type": "integer", "minimum": 0 },
+        "start": { "type": "integer", "description": "First event epoch ms." },
+        "end": { "type": "integer", "description": "Last event epoch ms." },
+        "centroid": { "$ref": "#/$defs/GeoPoint" },
+        "meanDepthKm": { "type": "number" },
+        "medianDepthKm": { "type": "number" },
+        "depthRangeKm": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "number" },
+          "description": "[minDepthKm, maxDepthKm]"
+        },
+        "maxMag": {
+          "type": "number",
+          "description": "Peak mag; 0 when all magnitudes are N/D."
+        },
+        "maxMagEvent": { "$ref": "#/$defs/SwarmEventChip" },
+        "eventIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Full member ids; resolve against catalog events (no nested QuakeEvent[])."
+        },
+        "topEvents": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/SwarmEventChip" }
+        },
+        "energyProxy": { "type": "number" },
+        "ratePerHour": { "type": "number" },
+        "durationHours": { "type": "number" },
+        "isActive": {
+          "type": "boolean",
+          "description": "True when end is within activeWithinMs of now (default 6h)."
+        }
+      }
+    },
+    "SwarmHourlyBin": {
+      "type": "object",
+      "required": ["t", "count", "maxMag", "meanDepth"],
+      "additionalProperties": false,
+      "properties": {
+        "t": { "type": "integer", "description": "Bin start epoch ms (hour floor)." },
+        "count": { "type": "integer" },
+        "maxMag": { "type": "number" },
+        "meanDepth": { "type": "number" }
+      }
+    }
+  }
+}

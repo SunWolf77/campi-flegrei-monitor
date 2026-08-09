@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://campi-flegrei-monitor.vercel.app/docs/schemas/ses-catalog.schema.json",
+  "title": "SES hub catalog feed (GeoJSON)",
+  "description": "Public FeatureCollection returned by GET /api/ses/catalog on SES swarm boards. Compatible with sun-earth-sentinel runtime merge (strip USGS in-bounds + inject authority features).",
+  "type": "object",
+  "required": ["type", "features"],
+  "additionalProperties": true,
+  "properties": {
+    "type": {
+      "const": "FeatureCollection"
+    },
+    "features": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SesEqFeature" }
+    },
+    "metadata": { "$ref": "#/$defs/SesCatalogMetadata" }
+  },
+  "$defs": {
+    "CatalogAuthority": {
+      "type": "string",
+      "enum": ["ingv-family", "usgs-family"]
+    },
+    "FocusNodeId": {
+      "type": "string",
+      "enum": ["campi-flegrei", "vesuvius", "tonga-kermadec"]
+    },
+    "SeismicProviderId": {
+      "type": "string",
+      "enum": ["gossip", "ingv", "usgs"]
+    },
+    "WindowKey": {
+      "type": "string",
+      "enum": ["24h", "48h", "7d", "30d", "ytd"]
+    },
+    "DragonId": {
+      "type": "string",
+      "description": "SES dragon-node id used in hub deep links and ?node= query params.",
+      "examples": ["mediterranean", "vesuvius", "tonga", "japan", "kamchatka"]
+    },
+    "SesEqFeature": {
+      "type": "object",
+      "required": ["type", "id", "properties", "geometry"],
+      "additionalProperties": true,
+      "properties": {
+        "type": { "const": "Feature" },
+        "id": {
+          "type": "string",
+          "description": "Stable event id from the authority catalog (GOSSIP / INGV / USGS)."
+        },
+        "properties": {
+          "type": "object",
+          "required": ["mag", "place", "time"],
+          "additionalProperties": true,
+          "properties": {
+            "mag": {
+              "type": ["number", "null"],
+              "description": "Magnitude; null when N/D (common on GOSSIP Md). Never invent 0."
+            },
+            "place": { "type": ["string", "null"] },
+            "time": {
+              "type": ["integer", "null"],
+              "description": "Origin time, epoch milliseconds UTC."
+            },
+            "updated": { "type": "integer" },
+            "url": { "type": "string", "format": "uri" },
+            "title": { "type": "string" },
+            "type": {
+              "type": "string",
+              "description": "Event type string from provider (e.g. earthquake)."
+            },
+            "status": { "type": "string" },
+            "magType": { "type": ["string", "null"] },
+            "sesSource": {
+              "description": "Which provider/family supplied the feature.",
+              "oneOf": [
+                { "$ref": "#/$defs/SeismicProviderId" },
+                { "$ref": "#/$defs/CatalogAuthority" }
+              ]
+            },
+            "sesNodeId": { "$ref": "#/$defs/FocusNodeId" }
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "required": ["type", "coordinates"],
+          "properties": {
+            "type": { "const": "Point" },
+            "coordinates": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 3,
+              "description": "[longitude, latitude, depthKm?] — depth positive down (km).",
+              "items": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "SesCatalogMetadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "generated": {
+          "type": "integer",
+          "description": "Feed build time, epoch ms."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Feature count (may mirror catalog.count)."
+        },
+        "title": { "type": "string" },
+        "authority": { "$ref": "#/$defs/CatalogAuthority" },
+        "nodeId": { "$ref": "#/$defs/FocusNodeId" },
+        "dragonId": { "$ref": "#/$defs/DragonId" },
+        "window": { "$ref": "#/$defs/WindowKey" },
+        "provider": { "$ref": "#/$defs/SeismicProviderId" },
+        "sourceUrl": {
+          "type": "string",
+          "description": "Upstream catalog URL used for this tick."
+        },
+        "board": {
+          "type": "string",
+          "description": "Publishing board id, e.g. campi-flegrei-monitor."
+        },
+        "note": {
+          "type": "string",
+          "description": "Human authority note for hub UI / operators."
+        }
+      }
+    }
+  }
+}
