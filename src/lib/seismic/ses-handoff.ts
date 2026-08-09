@@ -6,7 +6,8 @@
  *  - Board → Sentinel:  https://sun-earth-sentinel.vercel.app/?tab=live&node=<dragonId>
  *  - Catalog feed:      GET /api/ses/catalog?window=7d  (GeoJSON, CORS open)
  *
- * Dragon ids: tonga (SES #1), mediterranean (SES #2 / Campi Flegrei).
+ * Dragon ids: tonga (SES #1), mediterranean (SES #2 / Campi Flegrei),
+ * vesuvius (SES #3 / Vesuvius twin on this board).
  */
 
 import type { FocusNodeId } from "./types";
@@ -24,6 +25,9 @@ const SES_TO_FOCUS: Record<string, FocusNodeId> = {
   "campi-flegrei": "campi-flegrei",
   cf: "campi-flegrei",
   flegrei: "campi-flegrei",
+  vesuvius: "vesuvius",
+  ve: "vesuvius",
+  vesuvio: "vesuvius",
   tonga: "tonga-kermadec",
   "tonga-kermadec": "tonga-kermadec",
   tk: "tonga-kermadec",
@@ -73,11 +77,20 @@ export const SES_NETWORK: SesNetworkHop[] = [
     inAppNode: "campi-flegrei",
   },
   {
+    id: "vesuvius",
+    dragonId: "vesuvius",
+    short: "VE",
+    label: "Vesuvius Monitor",
+    order: 3,
+    href: CAMPI_BOARD_URL + "?node=vesuvius",
+    inAppNode: "vesuvius",
+  },
+  {
     id: "japan",
     dragonId: "japan",
     short: "JP",
     label: "Japan Arc Monitor",
-    order: 3,
+    order: 4,
     href: JAPAN_BOARD_URL,
     inAppNode: null,
   },
@@ -86,7 +99,7 @@ export const SES_NETWORK: SesNetworkHop[] = [
     dragonId: "kamchatka",
     short: "KM",
     label: "Kamchatka–Kurils Monitor",
-    order: 3,
+    order: 4,
     href: JAPAN_BOARD_URL + "?node=kamchatka",
     inAppNode: null,
   },
@@ -119,30 +132,37 @@ export function sentinelFocusUrl(
 
 /** Companion board URL (other published SES monitor) with handoff query. */
 export function companionBoardUrl(nodeId: FocusNodeId): string {
-  const isCf = nodeId === "campi-flegrei";
-  const base = isCf ? TONGA_BOARD_URL : CAMPI_BOARD_URL;
-  const companionDragon = isCf ? "tonga" : "mediterranean";
-  const u = new URL(base);
+  if (nodeId === "tonga-kermadec") {
+    const u = new URL(CAMPI_BOARD_URL);
+    u.searchParams.set("from", "ses");
+    u.searchParams.set("sesNode", "mediterranean");
+    return u.toString();
+  }
+  // CF / VE stay on this board family — companion is Tonga
+  const u = new URL(TONGA_BOARD_URL);
   u.searchParams.set("from", "ses");
-  u.searchParams.set("sesNode", companionDragon);
+  u.searchParams.set("sesNode", "tonga");
   return u.toString();
 }
 
 export function companionBoardLabel(nodeId: FocusNodeId): string {
-  return nodeId === "campi-flegrei" ? "Tonga–Kermadec board (#1)" : "Campi Flegrei board (#2)";
+  return nodeId === "tonga-kermadec"
+    ? "Campi Flegrei board (#2)"
+    : "Tonga–Kermadec board (#1)";
 }
 
 /** This board’s public GeoJSON feed for SES merge (absolute when origin known). */
 export function sesCatalogFeedUrl(
   windowKey = "7d",
   origin?: string,
+  nodeId: FocusNodeId = "campi-flegrei",
 ): string {
   const base =
     origin ||
     (typeof window !== "undefined" ? window.location.origin : CAMPI_BOARD_URL.replace(/\/$/, ""));
   const u = new URL("/api/ses/catalog", base.endsWith("/") ? base : `${base}/`);
   u.searchParams.set("window", windowKey);
-  u.searchParams.set("node", "mediterranean");
+  u.searchParams.set("node", sesDragonId(nodeId));
   return u.toString();
 }
 
