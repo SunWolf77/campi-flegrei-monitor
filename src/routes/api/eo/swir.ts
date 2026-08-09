@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { loadSwirPack } from "@/lib/eo/swirServer";
+import { clearSwirCache, loadSwirPack } from "@/lib/eo/swirServer";
 import { focusNodeFromSesParam } from "@/lib/seismic/ses-handoff";
 import type { FocusNodeId } from "@/lib/seismic/types";
 
@@ -24,6 +24,13 @@ export const Route = createFileRoute("/api/eo/swir")({
         const nodeId: FocusNodeId =
           focusNodeFromSesParam(nodeParam) ?? "campi-flegrei";
 
+        if (
+          url.searchParams.get("refresh") === "1" ||
+          url.searchParams.get("refresh") === "true"
+        ) {
+          clearSwirCache(nodeId);
+        }
+
         const pack = await loadSwirPack(nodeId);
         const maxAge = pack.ok ? Math.min(pack.cacheTtlSec || 3600, 21_600) : 120;
 
@@ -33,7 +40,7 @@ export const Route = createFileRoute("/api/eo/swir")({
             ...cors(),
             "Content-Type": "application/json; charset=utf-8",
             "Cache-Control": `public, max-age=${maxAge}, stale-while-revalidate=600`,
-            "X-Ses-Eo": "swir-phase-a",
+            "X-Ses-Eo": "swir-phase-a-b",
           },
         });
       },
