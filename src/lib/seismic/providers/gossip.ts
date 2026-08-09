@@ -1,23 +1,50 @@
 /**
  * INGV–Osservatorio Vesuviano GOSSIP catalog
- * https://terremoti.ov.ingv.it/gossip/flegrei/
+ * https://terremoti.ov.ingv.it/gossip/
  *
- * Dense local Campi Flegrei catalog used by the official
- * "Localizzazioni Sismiche" map (includes events without magnitude / N/D).
+ * Dense local Campania volcano catalogs used by the official
+ * "Localizzazioni Sismiche" maps (includes events without magnitude / N/D).
+ *
+ * Areas:
+ *   flegrei  → Campi Flegrei
+ *   vesuvio  → Mount Vesuvius
  */
 
-import type { FetchResult, QuakeEvent, SeismicQuery } from "../types";
+import type { FetchResult, FocusNodeId, QuakeEvent, SeismicQuery } from "../types";
 import type { SeismicProvider } from "./base";
 
 const GOSSIP_BASE = "https://terremoti.ov.ingv.it/gossip";
 
-export function gossipYearUrl(year: number, format: "csv" | "json" = "csv"): string {
-  return `${GOSSIP_BASE}/flegrei/${year}/events.${format}`;
+export type GossipArea = "flegrei" | "vesuvio";
+
+/** Map focus node → GOSSIP area path segment. */
+export function gossipAreaForNode(nodeId: FocusNodeId | string): GossipArea {
+  if (nodeId === "vesuvius") return "vesuvio";
+  return "flegrei";
 }
 
-export function gossipOfficialMapUrl(year?: number): string {
+export function gossipYearUrl(
+  year: number,
+  format: "csv" | "json" = "csv",
+  area: GossipArea = "flegrei",
+): string {
+  return `${GOSSIP_BASE}/${area}/${year}/events.${format}`;
+}
+
+export function gossipOfficialMapUrl(
+  year?: number,
+  area: GossipArea = "flegrei",
+): string {
   const y = year ?? new Date().getUTCFullYear();
-  return `${GOSSIP_BASE}/flegrei/${y}/`;
+  return `${GOSSIP_BASE}/${area}/${y}/`;
+}
+
+function placeLabel(area: string | undefined | null): string {
+  const a = (area ?? "").toLowerCase();
+  if (a === "vesuvio" || a === "vesuvius") return "Vesuvius";
+  if (a === "flegrei" || a === "campi flegrei") return "Campi Flegrei";
+  if (a === "ischia") return "Ischia";
+  return area || "Campania";
 }
 
 function parseNum(raw: string | undefined | null): number | null {
@@ -79,10 +106,7 @@ export function parseGossipCsv(text: string): QuakeEvent[] {
       depthKm,
       magnitude,
       magType: magnitude == null ? "N/D" : "Md",
-      place:
-        area === "flegrei" || area === "Campi Flegrei"
-          ? "Campi Flegrei"
-          : area || "Campi Flegrei",
+      place: placeLabel(area),
       eventType: eventType || "earthquake",
       author: "INGV-OV GOSSIP",
       provider: "gossip",
@@ -101,6 +125,48 @@ export function parseGossipCsv(text: string): QuakeEvent[] {
   return events;
 }
 
+function extractMagnitude(r: Record<string, unknown>): number | null {
+  const mdRaw = r.md ?? r.MD ?? r.magnitude ?? r.Magnitude;
+  if (mdRaw !== null && mdRaw !== undefined && mdRaw !== "" && mdRaw !== "N/D") {
+    const n = Number(mdRaw);
+    if (Number.isFinite(n)) return n;
+  }
+  // Newer GOSSIP JSON: magnitudos: [{ value, type: "D", ... }]
+  const mags = r.magnitudos;
+  if (Array.isArray(mags) && mags.length > 0) {
+    for (const m of mags) {
+      if (!m || typeof m !== "object") continue;
+      const row = m as Record<string, unknown>;
+      const v = Number(row.value ?? row.Value ?? row.md);
+      if (Number.isFinite(v)) return v;
+    }
+  }
+  return null;
+}
+
+function extractCoords(r: Record<string, unknown>): {
+  lat: number | null;
+  lon: number | null;
+  depthKm: number;
+} {
+  // Nested location object (current GOSSIP JSON shape)
+  const loc = r.location;
+  if (loc && typeof loc === "object") {
+    const L = loc as Record<string, unknown>;
+    const lat = parseNum(String(L.latitude ?? L.lat ?? L.Latitude ?? ""));
+    const lon = parseNum(String(L.longitude ?? L.lon ?? L.Longitude ?? ""));
+    const depthKm =
+      parseNum(String(L.depth ?? L.Depth ?? L.depth_km ?? "0")) ?? 0;
+    return { lat, lon, depthKm };
+  }
+  // Flat fallback
+  const lat = parseNum(String(r.lat ?? r.latitude ?? r.Latitude ?? ""));
+  const lon = parseNum(String(r.lon ?? r.longitude ?? r.Longitude ?? ""));
+  const depthKm =
+    parseNum(String(r.depth ?? r.Depth ?? r.depth_km ?? "0")) ?? 0;
+  return { lat, lon, depthKm };
+}
+
 export function parseGossipJson(data: unknown): QuakeEvent[] {
   if (!Array.isArray(data)) return [];
   const events: QuakeEvent[] = [];
@@ -110,17 +176,11 @@ export function parseGossipJson(data: unknown): QuakeEvent[] {
     const r = row as Record<string, unknown>;
 
     const eventId = String(r.id ?? r.EventID ?? r.event_id ?? "");
-    const lat = parseNum(String(r.lat ?? r.latitude ?? r.Latitude ?? ""));
-    const lon = parseNum(String(r.lon ?? r.longitude ?? r.Longitude ?? ""));
+    const { lat, lon, depthKm } = extractCoords(r);
     if (lat == null || lon == null) continue;
     if (Math.abs(lat) < 0.01 && Math.abs(lon) < 0.01) continue;
 
-    const depthKm = parseNum(String(r.depth ?? r.Depth ?? r.depth_km ?? "0")) ?? 0;
-    const mdRaw = r.md ?? r.MD ?? r.magnitude ?? r.Magnitude;
-    const magnitude =
-      mdRaw === null || mdRaw === undefined || mdRaw === "" || mdRaw === "N/D"
-        ? null
-        : Number(mdRaw);
+    const magnitude = extractMagnitude(r);
 
     let time: number;
     if (typeof r.epoch === "number") {
@@ -140,9 +200,9 @@ export function parseGossipJson(data: unknown): QuakeEvent[] {
       latitude: lat,
       longitude: lon,
       depthKm,
-      magnitude: magnitude != null && Number.isFinite(magnitude) ? magnitude : null,
-      magType: magnitude == null || !Number.isFinite(magnitude as number) ? "N/D" : "Md",
-      place: area === "flegrei" ? "Campi Flegrei" : area,
+      magnitude,
+      magType: magnitude == null ? "N/D" : "Md",
+      place: placeLabel(area),
       eventType: String(r.type ?? "earthquake"),
       author: "INGV-OV GOSSIP",
       provider: "gossip",
@@ -151,7 +211,13 @@ export function parseGossipJson(data: unknown): QuakeEvent[] {
       raw: {
         eventId,
         level: r.level != null ? String(r.level) : "",
-        quality: r.quality != null ? String(r.quality) : "",
+        quality:
+          r.location && typeof r.location === "object"
+            ? String((r.location as Record<string, unknown>).quality ?? "")
+            : r.quality != null
+              ? String(r.quality)
+              : "",
+        area,
       },
     });
   }
@@ -165,8 +231,11 @@ function yearsSpanned(start: Date, end: Date): number[] {
   return ys.length ? ys : [new Date().getUTCFullYear()];
 }
 
-async function fetchYear(year: number): Promise<{ events: QuakeEvent[]; url: string }> {
-  const csvUrl = gossipYearUrl(year, "csv");
+async function fetchYear(
+  year: number,
+  area: GossipArea,
+): Promise<{ events: QuakeEvent[]; url: string }> {
+  const csvUrl = gossipYearUrl(year, "csv", area);
   try {
     const res = await fetch(csvUrl, {
       headers: { Accept: "text/csv,text/plain,*/*" },
@@ -174,7 +243,7 @@ async function fetchYear(year: number): Promise<{ events: QuakeEvent[]; url: str
     });
     if (res.ok) {
       const text = await res.text();
-      if (text && !text.startsWith("<!") && text.includes(",")) {
+      if (text && !text.startsWith("<") && text.includes(",")) {
         return { events: parseGossipCsv(text), url: csvUrl };
       }
     }
@@ -182,7 +251,7 @@ async function fetchYear(year: number): Promise<{ events: QuakeEvent[]; url: str
     // fall through
   }
 
-  const jsonUrl = gossipYearUrl(year, "json");
+  const jsonUrl = gossipYearUrl(year, "json", area);
   const res = await fetch(jsonUrl, {
     headers: { Accept: "application/json" },
     cache: "no-store",
@@ -196,14 +265,15 @@ async function fetchYear(year: number): Promise<{ events: QuakeEvent[]; url: str
 
 export const gossipProvider: SeismicProvider = {
   id: "gossip",
-  label: "INGV-OV GOSSIP (Campi Flegrei)",
+  label: "INGV-OV GOSSIP (Campania volcanoes)",
   async fetchEvents(query: SeismicQuery): Promise<FetchResult> {
+    const area = gossipAreaForNode(query.node.id);
     const years = yearsSpanned(query.start, query.end);
     const all: QuakeEvent[] = [];
     const urls: string[] = [];
 
     for (const y of years) {
-      const { events, url } = await fetchYear(y);
+      const { events, url } = await fetchYear(y, area);
       urls.push(url);
       all.push(...events);
     }
@@ -212,7 +282,14 @@ export const gossipProvider: SeismicProvider = {
     const endMs = query.end.getTime();
     const minMag = query.minMagnitude;
 
-    let filtered = all.filter((e) => e.time >= startMs && e.time <= endMs);
+    // Soft bbox clip so a shared provider does not leak sibling-area events
+    const bb = query.node.bbox;
+    let filtered = all.filter((e) => {
+      if (e.time < startMs || e.time > endMs) return false;
+      if (e.latitude < bb.minLat || e.latitude > bb.maxLat) return false;
+      if (e.longitude < bb.minLon || e.longitude > bb.maxLon) return false;
+      return true;
+    });
     if (minMag != null && Number.isFinite(minMag)) {
       filtered = filtered.filter((e) => e.magnitude != null && e.magnitude >= minMag);
     }
