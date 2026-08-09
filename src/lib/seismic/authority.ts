@@ -10,7 +10,7 @@
  *   INGV FDSN bbox  → ~60 events
  *   GOSSIP (OV)     → ~1500+ localized YTD
  *
- * Italy / CF → INGV family (GOSSIP → FDSN). Pacific TK → USGS only.
+ * Italy / CF / Vesuvius → INGV family (GOSSIP → FDSN). Pacific TK → USGS only.
  */
 
 import type { FocusNodeId, SeismicProviderId } from "./types";
@@ -43,6 +43,16 @@ export const NODE_AUTHORITY: Record<FocusNodeId, NodeAuthorityPolicy> = {
     rationale:
       "INGV is the national authority for Italian seismicity. USGS reports at most a handful of felt CF events and systematically under-samples the shallow Md swarm catalog used operationally by Osservatorio Vesuviano.",
   },
+  vesuvius: {
+    nodeId: "vesuvius",
+    authority: "ingv-family",
+    chain: ["gossip", "ingv"],
+    blocked: ["usgs"],
+    sesDragonId: "vesuvius",
+    label: "INGV-OV (GOSSIP vesuvio → FDSN)",
+    rationale:
+      "Vesuvius local seismicity is published by Osservatorio Vesuviano on the GOSSIP vesuvio area feed. USGS does not resolve the dense shallow cone catalog; exclusive INGV-family authority, no dual-read.",
+  },
   "tonga-kermadec": {
     nodeId: "tonga-kermadec",
     authority: "usgs-family",
@@ -60,6 +70,12 @@ export function getAuthority(nodeId: FocusNodeId | string): NodeAuthorityPolicy 
   return NODE_AUTHORITY["campi-flegrei"];
 }
 
+/** True for Campi Flegrei + Vesuvius (shared GOSSIP / INGV-OV family). */
+export function isIngvGossipNode(nodeId: FocusNodeId | string): boolean {
+  const policy = getAuthority(nodeId);
+  return policy.authority === "ingv-family";
+}
+
 /**
  * Build the exclusive fetch chain for a node.
  * forceProvider is allowed only if it belongs to the node's authority family;
@@ -73,7 +89,7 @@ export function resolveProviderChain(
 
   if (forceProvider) {
     if (policy.blocked.includes(forceProvider)) {
-      // Hard block: never USGS for CF, never GOSSIP for TK
+      // Hard block: never USGS for CF/VE, never GOSSIP for TK
       return { chain: [...policy.chain], authority: policy.authority, forced: false };
     }
     if (policy.chain.includes(forceProvider)) {
