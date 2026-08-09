@@ -4,7 +4,8 @@
  * - updateWhenIdle: only refresh tiles after pan/zoom settles
  * - keepBuffer: retain adjacent tiles for smoother panning
  * - detectRetina: hi-dpi when available without over-fetching
- * Satellite (Esri) is preferred for ocean/arc nodes (TK); Voyager for land caldera (CF).
+ * Default: Esri World Imagery (satellite 2D) for all nodes.
+ * User preference is cached in localStorage via prefs.ts and overrides the default.
  */
 
 export type BasemapKind = "satellite" | "voyager" | "dark" | "osm";
@@ -19,7 +20,7 @@ export function basemapTileUrl(kind: BasemapKind = "satellite"): string {
   if (kind === "voyager") {
     return "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
   }
-  // Esri World Imagery — free, no key, works well for SW Pacific arc
+  // Esri World Imagery — free, no key, 2D satellite
   return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 }
 
@@ -67,8 +68,10 @@ export function basemapTileOptions(kind: BasemapKind = "satellite"): {
   };
 }
 
-/** Default basemap per focus node — satellite for ocean arc, voyager for land caldera. */
-export function defaultBasemapForNode(nodeId: string): BasemapKind {
-  if (nodeId === "tonga-kermadec") return "satellite";
-  return "voyager";
+/**
+ * Hard default when no localStorage preference exists.
+ * Satellite 2D for every focus node (CF, VE, TK, …).
+ */
+export function defaultBasemapForNode(_nodeId?: string): BasemapKind {
+  return "satellite";
 }

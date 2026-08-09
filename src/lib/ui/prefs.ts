@@ -1,5 +1,5 @@
 /**
- * UI preferences — progressive disclosure + theme + header collapse.
+ * UI preferences — progressive disclosure + theme + header collapse + map viewer.
  * Stored in localStorage; mobile quiet defaults on first visit (<768px).
  */
 
@@ -8,9 +8,14 @@ const QUIET_SOURCE_KEY = "ses-cf-quiet-source"; // user | auto-mobile
 const SUPT_FOCUS_KEY = "ses-cf-supt-focus";
 const THEME_KEY = "ses-cf-theme"; // light | dark | system
 const HEADER_COLLAPSE_KEY = "ses-cf-header-collapsed";
+const BASEMAP_KEY = "ses-cf-basemap"; // satellite | voyager | dark | osm
+const COLOR_MODE_KEY = "ses-cf-color-mode"; // time | magnitude | depth
+const STATIONS_KEY = "ses-cf-show-stations"; // 1 | 0
 
 export type ThemeMode = "light" | "dark" | "system";
 export type QuietSource = "user" | "auto-mobile" | "default";
+export type BasemapPref = "satellite" | "voyager" | "dark" | "osm";
+export type ColorModePref = "time" | "magnitude" | "depth";
 
 export function isMobileViewport(): boolean {
   if (typeof window === "undefined") return false;
@@ -149,4 +154,70 @@ export function cycleTheme(mode: ThemeMode): ThemeMode {
   if (mode === "dark") return "light";
   if (mode === "light") return "system";
   return "dark";
+}
+
+/** Cached map viewer preference (Sat / Map / Dark). null = use hard default (satellite). */
+export function getBasemapPref(): BasemapPref | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(BASEMAP_KEY);
+    if (v === "satellite" || v === "voyager" || v === "dark" || v === "osm") {
+      return v;
+    }
+  } catch {
+    /* */
+  }
+  return null;
+}
+
+export function setBasemapPref(kind: BasemapPref): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(BASEMAP_KEY, kind);
+  } catch {
+    /* */
+  }
+}
+
+/** Cached epicentre colour mode. null = default "time". */
+export function getColorModePref(): ColorModePref | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(COLOR_MODE_KEY);
+    if (v === "time" || v === "magnitude" || v === "depth") return v;
+  } catch {
+    /* */
+  }
+  return null;
+}
+
+export function setColorModePref(mode: ColorModePref): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(COLOR_MODE_KEY, mode);
+  } catch {
+    /* */
+  }
+}
+
+/** Cached stations layer visibility. null = default off. */
+export function getShowStationsPref(): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(STATIONS_KEY);
+    if (v === "1") return true;
+    if (v === "0") return false;
+  } catch {
+    /* */
+  }
+  return null;
+}
+
+export function setShowStationsPref(on: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STATIONS_KEY, on ? "1" : "0");
+  } catch {
+    /* */
+  }
 }
