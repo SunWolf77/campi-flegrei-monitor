@@ -35,7 +35,8 @@ npm run build        # production + Nitro vercel output
 
 **Repo:** [github.com/SunWolf77/campi-flegrei-monitor](https://github.com/SunWolf77/campi-flegrei-monitor)
 
-Full guide: **[docs/DEPLOY.md](docs/DEPLOY.md)** (Vercel env vars, CI, SES link).
+Full guide: **[docs/DEPLOY.md](docs/DEPLOY.md)** (Vercel env vars, CI, SES link).  
+SES hub feed contract & JSON Schema: **[docs/SES-HUB-SCHEMA.md](docs/SES-HUB-SCHEMA.md)**.
 
 ```bash
 git remote add origin https://github.com/SunWolf77/campi-flegrei-monitor.git
