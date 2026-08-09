@@ -95,9 +95,28 @@ export type SwarmCluster = {
   end: number;
   centroid: GeoPoint;
   meanDepthKm: number;
-  maxMagnitude: number | null;
+  /** Median depth of events in the cluster (km). */
+  medianDepthKm: number;
+  /** [min, max] depth km within the cluster. */
+  depthRangeKm: [number, number];
+  /** Peak magnitude in cluster (0 when all N/D). */
+  maxMag: number;
+  /** Chip for the peak-magnitude event. */
+  maxMagEvent: SwarmEventChip;
   eventIds: string[];
   topEvents: SwarmEventChip[];
+  energyProxy: number;
+  ratePerHour: number;
+  durationHours: number;
+  /** True when the cluster end is within the active window (default 6h). */
+  isActive: boolean;
+};
+
+export type SwarmHourlyBin = {
+  t: number;
+  count: number;
+  maxMag: number;
+  meanDepth: number;
 };
 
 export type SwarmAnalysis = {
@@ -107,8 +126,12 @@ export type SwarmAnalysis = {
   rate6h: number;
   rate24h: number;
   meanDepthKm: number;
-  maxMagnitude: number | null;
-  hourlyBins: { t: number; n: number }[];
+  /** Max magnitude across the full analysis window. */
+  maxMagWindow: number;
+  /** Fraction of events with depth < 3 km. */
+  shallowFraction: number;
+  cumulativeEnergy: number;
+  hourlyBins: SwarmHourlyBin[];
 };
 
 export type FetchResult = {
@@ -119,7 +142,8 @@ export type FetchResult = {
   count: number;
   window: { start: string; end: string };
   nodeId: FocusNodeId;
-  authority?: string;
+  /** Exclusive catalog family for this fetch (never dual-read). */
+  authority?: "ingv-family" | "usgs-family";
   attempted?: SeismicProviderId[];
 };
 
