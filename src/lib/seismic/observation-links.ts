@@ -52,6 +52,13 @@ export function observationLinks(nodeId: FocusNodeId): ObservationLink[] {
         group: "satellite",
       },
       {
+        id: "solfatara-news",
+        title: "SolfataraNews (YouTube)",
+        subtitle: "Local field / drone updates · third-party media",
+        href: "https://www.youtube.com/@SolfataraNews",
+        group: "satellite",
+      },
+      {
         id: "s1-cf",
         title: "Sentinel-1 SAR",
         subtitle: "Ground deformation context (InSAR-capable scenes)",

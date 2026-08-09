@@ -32,6 +32,8 @@ import { NotionFramework } from "@/components/feeds/NotionFramework";
 import { PacificNodePanel } from "@/components/feeds/PacificNodePanel";
 import { EpochLogPanel } from "@/components/feeds/EpochLogPanel";
 import { LaicBrief } from "@/components/feeds/LaicBrief";
+import { SolfataraNewsPanel } from "@/components/feeds/SolfataraNewsPanel";
+import { SwirEoPanel } from "@/components/feeds/SwirEoPanel";
 import { EventTable } from "@/components/dashboard/EventTable";
 import { SesNetworkBar } from "@/components/dashboard/SesNetworkBar";
 import { buildContinuumReport } from "@/lib/supt/continuum";
@@ -562,6 +564,27 @@ export function MonitorApp({ initial }: Props) {
         )}
         {tab === "feeds" && (
           <div className="space-y-4">
+            {(nodeId === "campi-flegrei" || nodeId === "vesuvius") && (
+              <section className="space-y-2">
+                <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Earth observation · field media
+                </h3>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <SwirEoPanel nodeId={nodeId} />
+                  {nodeId === "campi-flegrei" ? (
+                    <SolfataraNewsPanel />
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border bg-secondary/20 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                      <p className="font-medium text-foreground">Field video</p>
+                      <p className="mt-1">
+                        SolfataraNews is scoped to the Phlegraean / Solfatara area (CF node).
+                        For Vesuvius, use SWIR products and OV authority links.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
             <section className="space-y-2">
               <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Live signals</h3>
               <div className="grid gap-3 lg:grid-cols-2">
