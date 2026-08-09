@@ -60,9 +60,16 @@ export function observationLinks(nodeId: FocusNodeId): ObservationLink[] {
       },
       {
         id: "s1-cf",
-        title: "Sentinel-1 SAR",
-        subtitle: "Ground deformation context (InSAR-capable scenes)",
+        title: "Sentinel-1 SAR (Browser)",
+        subtitle: "GRD scenes · Copernicus Browser · not InSAR TS",
         href: "https://browser.dataspace.copernicus.eu/?zoom=12&lat=40.83&lng=14.14&themeId=DEFAULT-THEME&datasetId=SENTINEL-1-GRD",
+        group: "satellite",
+      },
+      {
+        id: "comet-cf",
+        title: "COMET volcano portal",
+        subtitle: "Sentinel-1 InSAR frames · Campi Flegrei deformation context",
+        href: "https://comet.nerc.ac.uk/comet-volcano-portal/",
         group: "satellite",
       },
       {
@@ -128,8 +135,8 @@ export function observationLinks(nodeId: FocusNodeId): ObservationLink[] {
       },
       {
         id: "s1-ve",
-        title: "Sentinel-1 SAR",
-        subtitle: "Ground deformation context (InSAR-capable scenes)",
+        title: "Sentinel-1 SAR (Browser)",
+        subtitle: "GRD scenes · Copernicus Browser · not InSAR TS",
         href: "https://browser.dataspace.copernicus.eu/?zoom=13&lat=40.821&lng=14.426&themeId=DEFAULT-THEME&datasetId=SENTINEL-1-GRD",
         group: "satellite",
       },

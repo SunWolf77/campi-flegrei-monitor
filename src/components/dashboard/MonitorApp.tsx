@@ -34,6 +34,7 @@ import { EpochLogPanel } from "@/components/feeds/EpochLogPanel";
 import { LaicBrief } from "@/components/feeds/LaicBrief";
 import { SolfataraNewsPanel } from "@/components/feeds/SolfataraNewsPanel";
 import { SwirEoPanel } from "@/components/feeds/SwirEoPanel";
+import { SarEoPanel } from "@/components/feeds/SarEoPanel";
 import { EventTable } from "@/components/dashboard/EventTable";
 import { SesNetworkBar } from "@/components/dashboard/SesNetworkBar";
 import { buildContinuumReport } from "@/lib/supt/continuum";
@@ -571,6 +572,7 @@ export function MonitorApp({ initial }: Props) {
                 </h3>
                 <div className="grid gap-3 lg:grid-cols-2">
                   <SwirEoPanel nodeId={nodeId} />
+                  <SarEoPanel nodeId={nodeId} />
                   {nodeId === "campi-flegrei" ? (
                     <SolfataraNewsPanel />
                   ) : (
@@ -578,7 +580,7 @@ export function MonitorApp({ initial }: Props) {
                       <p className="font-medium text-foreground">Field video</p>
                       <p className="mt-1">
                         SolfataraNews is scoped to the Phlegraean / Solfatara area (CF node).
-                        For Vesuvius, use SWIR products and OV authority links.
+                        For Vesuvius, use S2 / S1 products and OV authority links.
                       </p>
                     </div>
                   )}
