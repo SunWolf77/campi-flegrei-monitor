@@ -1,16 +1,8 @@
 /**
  * Sentinel-2 EO pack — types + pure helpers.
- * Live STAC search + product URL build lives in swirServer / API routes.
  *
- * Phase A composites (Sentinel-2 L2A · Planetary Computer data API):
- * - truecolor  B04·B03·B02
- * - geology    B12·B11·B04  (SWIR composite)
- * - heat       B12·B08·B04  (SWIR / NIR heat-accent proxy)
- *
- * Phase B spectral indices (same scene / STAC pipeline):
- * - ndvi  (B08−B04)/(B08+B04)  · greenness
- * - ndmi  (B08−B11)/(B08+B11)  · moisture
- * - nbr   (B08−B12)/(B08+B12)  · burn / bare contrast
+ * Phase A composites · Phase B single-date indices · Phase C dual-scene change
+ * (dNBR · RdNBR · dNDVI · dNDMI) on the same STAC / Planetary Computer pipeline.
  *
  * Not a forecast. Not GOSSIP authority. Copernicus open data.
  */
@@ -23,37 +15,66 @@ export type SwirProductId =
   | "heat"
   | "ndvi"
   | "ndmi"
-  | "nbr";
+  | "nbr"
+  | "dnbr"
+  | "rdnbr"
+  | "dndvi"
+  | "dndmi";
 
-export type SwirProductPhase = "A" | "B";
+export type SwirProductPhase = "A" | "B" | "C";
 
 export type SwirProduct = {
   id: SwirProductId;
   phase: SwirProductPhase;
   label: string;
   blurb: string;
-  /** Browser-displayable PNG (Planetary Computer data API) */
+  /** Browser-displayable PNG */
   imageUrl: string;
   bands: string;
   formula?: string;
 };
 
+/** Dual-scene pair for Phase C change products */
+export type SwirScenePair = {
+  postId: string;
+  postTime: string | null;
+  postCloud: number | null;
+  preId: string;
+  preTime: string | null;
+  preCloud: number | null;
+  /** calendar days between acquisitions */
+  daysBetween: number | null;
+  tile: string | null;
+};
+
+export type ChangeSeverityStats = {
+  /** mean of pre−post index over AOI pixels */
+  mean: number;
+  p90: number;
+  /** fraction of pixels in rough severity bins (dNBR-style, positive = loss) */
+  fracUnburned: number;
+  fracLow: number;
+  fracModerate: number;
+  fracHigh: number;
+  samplePixels: number;
+};
+
 export type SwirPack = {
   nodeId: FocusNodeId;
   ok: boolean;
-  /** ISO scene acquisition time */
+  /** ISO scene acquisition time (post / latest) */
   sceneTime: string | null;
   sceneId: string | null;
   cloudCoverPct: number | null;
-  /** days since acquisition (float) */
   ageDays: number | null;
   tile: string | null;
   products: SwirProduct[];
-  /** STAC item page */
+  /** Phase C pair metadata when available */
+  pair: SwirScenePair | null;
+  /** Optional AOI stats for dNBR (filled when change render runs / pack build) */
+  dnbrStats: ChangeSeverityStats | null;
   stacUrl: string | null;
-  /** Copernicus Browser deep link for interactive EO */
   browserUrl: string | null;
-  /** External map explorer for this item */
   explorerUrl: string | null;
   attribution: string;
   note: string;
@@ -107,13 +128,40 @@ export const SWIR_PRODUCT_META: Record<
   nbr: {
     phase: "B",
     label: "NBR",
-    blurb: "Burn / bare contrast via NIR–SWIR2 (single-date; not dNBR)",
+    blurb: "Burn / bare contrast via NIR–SWIR2 (single-date)",
     bands: "B08 · B12",
     formula: "(B08 − B12) / (B08 + B12)",
   },
+  dnbr: {
+    phase: "C",
+    label: "dNBR",
+    blurb: "NBR_pre − NBR_post · positive ≈ canopy/bare loss (not a fire alert)",
+    bands: "B08 · B12 ×2",
+    formula: "NBR_pre − NBR_post",
+  },
+  rdnbr: {
+    phase: "C",
+    label: "RdNBR",
+    blurb: "Relative dNBR severity · dNBR / √|NBR_pre| (Miller & Thode style)",
+    bands: "B08 · B12 ×2",
+    formula: "dNBR / √|NBR_pre|",
+  },
+  dndvi: {
+    phase: "C",
+    label: "dNDVI",
+    blurb: "NDVI_pre − NDVI_post · positive ≈ greening loss / browning",
+    bands: "B08 · B04 ×2",
+    formula: "NDVI_pre − NDVI_post",
+  },
+  dndmi: {
+    phase: "C",
+    label: "dNDMI",
+    blurb: "NDMI_pre − NDMI_post · positive ≈ moisture loss (surface/canopy)",
+    bands: "B08 · B11 ×2",
+    formula: "NDMI_pre − NDMI_post",
+  },
 };
 
-/** Display order: Phase A composites then Phase B indices */
 export const SWIR_PRODUCT_ORDER: SwirProductId[] = [
   "truecolor",
   "geology",
@@ -121,17 +169,21 @@ export const SWIR_PRODUCT_ORDER: SwirProductId[] = [
   "ndvi",
   "ndmi",
   "nbr",
+  "dnbr",
+  "rdnbr",
+  "dndvi",
+  "dndmi",
 ];
 
 export const SWIR_PHASE_A: SwirProductId[] = ["truecolor", "geology", "heat"];
 export const SWIR_PHASE_B: SwirProductId[] = ["ndvi", "ndmi", "nbr"];
+export const SWIR_PHASE_C: SwirProductId[] = ["dnbr", "rdnbr", "dndvi", "dndmi"];
 
 /** AOI for STAC search + preview bbox (lon/lat). */
 export function swirBboxForNode(
   nodeId: FocusNodeId,
 ): [number, number, number, number] | null {
   if (nodeId === "campi-flegrei") {
-    // Caldera + Solfatara / Pisciarelli (slightly wider than mapView for context)
     return [14.08, 40.79, 14.20, 40.86];
   }
   if (nodeId === "vesuvius") {
@@ -153,13 +205,15 @@ export function emptySwirPack(
     ageDays: null,
     tile: null,
     products: [],
+    pair: null,
+    dnbrStats: null,
     stacUrl: null,
     browserUrl: null,
     explorerUrl: null,
     attribution:
-      "Contains modified Copernicus Sentinel data · rendered via Microsoft Planetary Computer",
+      "Contains modified Copernicus Sentinel data · Microsoft Planetary Computer",
     note:
-      "Phase A+B EO pack — observational only; indices are single-date, not alerts.",
+      "Phase A+B+C EO pack — observational only; change products need a clear pre/post pair.",
     error,
     fetchedAt: Date.now(),
     cacheTtlSec: 0,
@@ -178,4 +232,12 @@ export function copernicusBrowserUrl(
   u.searchParams.set("themeId", "DEFAULT-THEME");
   u.searchParams.set("datasetId", "SENTINEL-2-L2A");
   return u.toString();
+}
+
+/** Rough dNBR severity bins (USGS-inspired; urban/caldera — illustrative only). */
+export function classifyDnbrSeverity(v: number): "unburned" | "low" | "moderate" | "high" {
+  if (v < 0.1) return "unburned";
+  if (v < 0.27) return "low";
+  if (v < 0.44) return "moderate";
+  return "high";
 }

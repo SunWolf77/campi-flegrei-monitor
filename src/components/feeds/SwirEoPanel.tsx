@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
-import { ExternalLink, Flame, Leaf, RefreshCw, Satellite } from "lucide-react";
+import { useEffect, useState, type SyntheticEvent } from "react";
+import {
+  ExternalLink,
+  Flame,
+  GitCompareArrows,
+  Leaf,
+  RefreshCw,
+  Satellite,
+} from "lucide-react";
 import type { FocusNodeId } from "@/lib/seismic/types";
 import {
   SWIR_PHASE_A,
   SWIR_PHASE_B,
+  SWIR_PHASE_C,
   emptySwirPack,
   type SwirPack,
   type SwirProductId,
@@ -29,17 +37,18 @@ export function SwirEoPanel({ nodeId, className }: Props) {
   const [active, setActive] = useState<SwirProductId>("truecolor");
   const [loading, setLoading] = useState(true);
   const [imgErr, setImgErr] = useState(false);
+  const [changeStats, setChangeStats] = useState<string | null>(null);
 
   const load = (force = false) => {
     setLoading(true);
     setImgErr(false);
+    setChangeStats(null);
     const q = new URLSearchParams({ node: nodeId });
     if (force) q.set("refresh", "1");
     void fetch(`/api/eo/swir?${q}`, { headers: { Accept: "application/json" } })
       .then(async (r) => {
         const j = (await r.json()) as SwirPack;
         setPack(j);
-        // keep selection if still present
         if (!j.products.some((p) => p.id === active) && j.products[0]) {
           setActive(j.products[0].id);
         }
@@ -79,14 +88,60 @@ export function SwirEoPanel({ nodeId, className }: Props) {
   const select = (id: SwirProductId) => {
     setActive(id);
     setImgErr(false);
+    setChangeStats(null);
   };
+
+  const onImgLoad = (_e: SyntheticEvent<HTMLImageElement>) => {
+    /* reserved */
+  };
+
+  // When change product selected, fetch HEAD/GET for stats header once
+  useEffect(() => {
+    if (!product || product.phase !== "C" || !product.imageUrl) {
+      setChangeStats(null);
+      return;
+    }
+    let cancelled = false;
+    void fetch(product.imageUrl, { method: "GET" })
+      .then(async (r) => {
+        if (cancelled) return;
+        const raw = r.headers.get("X-Ses-Eo-Stats");
+        if (raw) {
+          try {
+            const s = JSON.parse(raw) as {
+              mean: number;
+              p90: number;
+              fracHigh: number;
+              fracModerate: number;
+            };
+            setChangeStats(
+              `mean ${s.mean.toFixed(3)} · p90 ${s.p90.toFixed(3)} · mod+ ${(
+                (s.fracModerate + s.fracHigh) *
+                100
+              ).toFixed(0)}%`,
+            );
+          } catch {
+            setChangeStats(null);
+          }
+        }
+        // ensure browser has body cached for img
+      })
+      .catch(() => {
+        if (!cancelled) setChangeStats(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [product?.id, product?.imageUrl, product?.phase]);
+
+  const pair = pack.pair;
 
   return (
     <Card className={cn("overflow-hidden border-accent/20", className)}>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center gap-2">
           <Satellite className="size-4 text-accent" aria-hidden />
-          <CardTitle className="text-sm">S2 EO · Phase A + B</CardTitle>
+          <CardTitle className="text-sm">S2 EO · Phase A–C</CardTitle>
           <Badge variant="outline" className="font-mono text-[10px]">
             EO
           </Badge>
@@ -95,10 +150,17 @@ export function SwirEoPanel({ nodeId, className }: Props) {
               {cloudLabel}
             </Badge>
           )}
+          {pair && (
+            <Badge variant="outline" className="font-mono text-[10px]">
+              Δ {pair.daysBetween?.toFixed(0) ?? "?"}d
+            </Badge>
+          )}
         </div>
         <CardDescription className="text-[11px] leading-snug">
-          Same latest low-cloud S2 L2A scene: composites +{" "}
-          <strong className="font-medium text-foreground">NDVI · NDMI · NBR</strong>
+          Composites · single-date indices ·{" "}
+          <strong className="font-medium text-foreground">
+            dual-scene dNBR / RdNBR / dNDVI / dNDMI
+          </strong>
           . Observational only — not INGV authority, not a fire/thermal alert.
         </CardDescription>
       </CardHeader>
@@ -120,6 +182,26 @@ export function SwirEoPanel({ nodeId, className }: Props) {
           onSelect={select}
           indexStyle
         />
+        <ProductRow
+          title="Phase C · change (pre − post)"
+          ids={SWIR_PHASE_C}
+          pack={pack}
+          active={active}
+          loading={loading}
+          onSelect={select}
+          changeStyle
+        />
+
+        {pair && (
+          <p className="rounded-md border border-border bg-secondary/30 px-2 py-1.5 font-mono text-[10px] text-muted-foreground">
+            <span className="font-sans font-medium text-foreground">Pair · </span>
+            post {pair.postTime?.slice(0, 10) ?? "—"} (cloud{" "}
+            {pair.postCloud?.toFixed(1) ?? "?"}%) ← pre{" "}
+            {pair.preTime?.slice(0, 10) ?? "—"} (cloud{" "}
+            {pair.preCloud?.toFixed(1) ?? "?"}%)
+            {pair.daysBetween != null && <> · {pair.daysBetween.toFixed(1)} d</>}
+          </p>
+        )}
 
         <div className="flex justify-end">
           <Button
@@ -142,19 +224,25 @@ export function SwirEoPanel({ nodeId, className }: Props) {
               Loading Sentinel-2 pack…
             </div>
           )}
-          {!loading && product && !imgErr && (
+          {!loading && product && !imgErr && product.imageUrl && (
             <img
               src={product.imageUrl}
               alt={`${product.label} · ${pack.sceneId ?? "S2"}`}
               className="h-full w-full object-cover"
               loading="lazy"
               referrerPolicy="no-referrer"
+              onLoad={onImgLoad}
               onError={() => setImgErr(true)}
             />
           )}
-          {!loading && (imgErr || !product) && (
+          {!loading && (imgErr || !product?.imageUrl) && (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted-foreground">
-              <p>{pack.error ?? "Preview unavailable for this scene."}</p>
+              <p>
+                {pack.error ??
+                  (product?.phase === "C" && !pair
+                    ? "No clear pre/post pair yet for change products."
+                    : "Preview unavailable for this scene.")}
+              </p>
               {pack.browserUrl && (
                 <a
                   href={pack.browserUrl}
@@ -182,8 +270,9 @@ export function SwirEoPanel({ nodeId, className }: Props) {
           )}
         </div>
 
-        {product?.phase === "B" && (
-          <IndexLegend productId={product.id} />
+        {product?.phase === "B" && <IndexLegend productId={product.id} />}
+        {product?.phase === "C" && (
+          <ChangeLegend productId={product.id} statsLine={changeStats} />
         )}
 
         <div className="grid grid-cols-3 gap-2">
@@ -261,6 +350,7 @@ function ProductRow({
   loading,
   onSelect,
   indexStyle,
+  changeStyle,
 }: {
   title: string;
   ids: SwirProductId[];
@@ -269,6 +359,7 @@ function ProductRow({
   loading: boolean;
   onSelect: (id: SwirProductId) => void;
   indexStyle?: boolean;
+  changeStyle?: boolean;
 }) {
   return (
     <div>
@@ -295,6 +386,7 @@ function ProductRow({
             >
               {id === "heat" && <Flame className="size-3" aria-hidden />}
               {indexStyle && <Leaf className="size-3" aria-hidden />}
+              {changeStyle && <GitCompareArrows className="size-3" aria-hidden />}
               {p?.label ?? id.toUpperCase()}
             </button>
           );
@@ -309,7 +401,7 @@ function IndexLegend({ productId }: { productId: SwirProductId }) {
     return (
       <p className="rounded-md border border-border bg-secondary/30 px-2 py-1.5 text-[10px] text-muted-foreground">
         <span className="font-medium text-foreground">NDVI ramp</span> — red/low
-        (bare, urban, rock) → yellow → green/high (dense vegetation). Single date.
+        (bare, urban) → green/high (dense vegetation). Single date.
       </p>
     );
   }
@@ -317,20 +409,50 @@ function IndexLegend({ productId }: { productId: SwirProductId }) {
     return (
       <p className="rounded-md border border-border bg-secondary/30 px-2 py-1.5 text-[10px] text-muted-foreground">
         <span className="font-medium text-foreground">NDMI ramp</span> — brown/low
-        (dry) → teal/high (moister canopy/soil). Uses B11 SWIR1.
+        (dry) → teal/high (moister canopy/soil).
       </p>
     );
   }
   if (productId === "nbr") {
     return (
       <p className="rounded-md border border-border bg-secondary/30 px-2 py-1.5 text-[10px] text-muted-foreground">
-        <span className="font-medium text-foreground">NBR ramp</span> — low values
-        often bare/burn-like SWIR response; high = green canopy. Not multi-date{" "}
-        <span className="font-mono">dNBR</span>.
+        <span className="font-medium text-foreground">NBR ramp</span> — single-date
+        burn/bare contrast. Use Phase C dNBR for change.
       </p>
     );
   }
   return null;
+}
+
+function ChangeLegend({
+  productId,
+  statsLine,
+}: {
+  productId: SwirProductId;
+  statsLine: string | null;
+}) {
+  const title =
+    productId === "rdnbr"
+      ? "RdNBR severity"
+      : productId === "dndvi"
+        ? "dNDVI (veg loss)"
+        : productId === "dndmi"
+          ? "dNDMI (moisture loss)"
+          : "dNBR change";
+  return (
+    <div className="space-y-1 rounded-md border border-border bg-secondary/30 px-2 py-1.5 text-[10px] text-muted-foreground">
+      <p>
+        <span className="font-medium text-foreground">{title}</span>
+        {" — "}
+        blue/cyan = gain (greener/wetter) · white ≈ stable · yellow/red = loss
+        (pre − post). Severity bins are{" "}
+        <em>illustrative</em> for caldera/urban mix.
+      </p>
+      {statsLine && (
+        <p className="font-mono text-foreground/90">AOI · {statsLine}</p>
+      )}
+    </div>
+  );
 }
 
 function Kpi({

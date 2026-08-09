@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiCronRouteImport } from './routes/api/cron'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiEoChangeImageRouteImport } from './routes/api/eo/change-image'
 import { Route as ApiEoSwirRouteImport } from './routes/api/eo/swir'
 import { Route as ApiSesCatalogRouteImport } from './routes/api/ses/catalog'
 import { Route as ApiSesVolcanoRouteImport } from './routes/api/ses/volcano'
@@ -29,6 +30,11 @@ const ApiCronRoute = ApiCronRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEoChangeImageRoute = ApiEoChangeImageRouteImport.update({
+  id: '/api/eo/change-image',
+  path: '/api/eo/change-image',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEoSwirRoute = ApiEoSwirRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/cron': typeof ApiCronRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/eo/change-image': typeof ApiEoChangeImageRoute
   '/api/eo/swir': typeof ApiEoSwirRoute
   '/api/ses/catalog': typeof ApiSesCatalogRoute
   '/api/ses/volcano': typeof ApiSesVolcanoRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/cron': typeof ApiCronRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/eo/change-image': typeof ApiEoChangeImageRoute
   '/api/eo/swir': typeof ApiEoSwirRoute
   '/api/ses/catalog': typeof ApiSesCatalogRoute
   '/api/ses/volcano': typeof ApiSesVolcanoRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/api/cron': typeof ApiCronRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/eo/change-image': typeof ApiEoChangeImageRoute
   '/api/eo/swir': typeof ApiEoSwirRoute
   '/api/ses/catalog': typeof ApiSesCatalogRoute
   '/api/ses/volcano': typeof ApiSesVolcanoRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/cron'
     | '/api/health'
+    | '/api/eo/change-image'
     | '/api/eo/swir'
     | '/api/ses/catalog'
     | '/api/ses/volcano'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/cron'
     | '/api/health'
+    | '/api/eo/change-image'
     | '/api/eo/swir'
     | '/api/ses/catalog'
     | '/api/ses/volcano'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/cron'
     | '/api/health'
+    | '/api/eo/change-image'
     | '/api/eo/swir'
     | '/api/ses/catalog'
     | '/api/ses/volcano'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiCronRoute: typeof ApiCronRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiEoChangeImageRoute: typeof ApiEoChangeImageRoute
   ApiEoSwirRoute: typeof ApiEoSwirRoute
   ApiSesCatalogRoute: typeof ApiSesCatalogRoute
   ApiSesVolcanoRoute: typeof ApiSesVolcanoRoute
@@ -129,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/eo/change-image': {
+      id: '/api/eo/change-image'
+      path: '/api/eo/change-image'
+      fullPath: '/api/eo/change-image'
+      preLoaderRoute: typeof ApiEoChangeImageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/eo/swir': {
@@ -159,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiCronRoute: ApiCronRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiEoChangeImageRoute: ApiEoChangeImageRoute,
   ApiEoSwirRoute: ApiEoSwirRoute,
   ApiSesCatalogRoute: ApiSesCatalogRoute,
   ApiSesVolcanoRoute: ApiSesVolcanoRoute,

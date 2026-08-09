@@ -40,7 +40,7 @@ export const Route = createFileRoute("/api/eo/swir")({
             ...cors(),
             "Content-Type": "application/json; charset=utf-8",
             "Cache-Control": `public, max-age=${maxAge}, stale-while-revalidate=600`,
-            "X-Ses-Eo": "swir-phase-a-b",
+            "X-Ses-Eo": "swir-phase-a-b-c",
           },
         });
       },
