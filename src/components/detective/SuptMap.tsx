@@ -5,7 +5,8 @@ import type { FracturePlane, StressNode, Lineament, MigrationStep } from "@/lib/
 import { leafletMagRadius, timeAgeColor, eventAge01 } from "@/lib/seismic/colors";
 import { magValue, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { basemapTileOptions, basemapTileUrl } from "@/lib/map/tiles";
+import { basemapTileOptions, basemapTileUrl, defaultBasemapForNode, type BasemapKind } from "@/lib/map/tiles";
+import { getBasemapPref, setBasemapPref } from "@/lib/ui/prefs";
 
 /** Distinct SUPT layer palette — nodes ≠ fractures */
 export const SUPT_LAYER_COLORS = {
@@ -21,10 +22,10 @@ export const SUPT_LAYER_COLORS = {
   /** Migration — teal */
   migration: "#00838f",
   migrationEnd: "#26c6da",
-  /** Stress density field — strong violet haze (readable on OSM) */
-  fieldHot: "#5e35b1",
-  fieldMid: "#7e57c2",
-  fieldCool: "#9575cd",
+  /** Stress density field — violet haze (readable on satellite + light maps) */
+  fieldHot: "#b39ddb",
+  fieldMid: "#9575cd",
+  fieldCool: "#7e57c2",
   /** Principal axes */
   sigmaParallel: "#212121",
   sigmaNormal: "#1565c0",
@@ -76,9 +77,20 @@ export function SuptMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layersRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const tileRef = useRef<import("leaflet").TileLayer | null>(null);
   const drawRef = useRef<() => Promise<void>>(async () => {});
   const [fullscreen, setFullscreen] = useState(defaultFullscreen);
   const [helpOpen, setHelpOpen] = useState(false);
+  /** Satellite 2D default — fabric reads far better over imagery than street map. */
+  const [basemap, setBasemapState] = useState<BasemapKind>(() =>
+    getBasemapPref() ?? defaultBasemapForNode(),
+  );
+  const basemapRef = useRef(basemap);
+  basemapRef.current = basemap;
+  const selectBasemap = useCallback((kind: BasemapKind) => {
+    setBasemapState(kind);
+    setBasemapPref(kind);
+  }, []);
   /** Layers panel collapsed by default — critical on mobile so map stays clear */
   const [layersOpen, setLayersOpen] = useState(false);
   /** Toggle layers — shape + colour in legend for clarity */
@@ -223,14 +235,16 @@ export function SuptMap({
 
       // Stress density field (soft purple haze — not amber, not magenta)
       if (vis.field) {
-        // Two-pass haze: wide soft underlay + tighter core (readable on OSM)
+        const onDark =
+          basemapRef.current === "satellite" || basemapRef.current === "dark";
+        // Two-pass haze: wide soft underlay + tighter core
         for (const cell of stressField) {
           if (cell.intensity < 0.08) continue;
           L.circleMarker([cell.lat, cell.lon], {
             radius: 14 + cell.intensity * 28,
             stroke: false,
             fillColor: fieldColor(cell.intensity),
-            fillOpacity: 0.14 + cell.intensity * 0.28,
+            fillOpacity: (onDark ? 0.18 : 0.14) + cell.intensity * (onDark ? 0.34 : 0.28),
           }).addTo(group);
         }
         for (const cell of stressField) {
@@ -239,7 +253,7 @@ export function SuptMap({
             radius: 5 + cell.intensity * 12,
             stroke: false,
             fillColor: fieldColor(cell.intensity),
-            fillOpacity: 0.22 + cell.intensity * 0.35,
+            fillOpacity: (onDark ? 0.28 : 0.22) + cell.intensity * (onDark ? 0.4 : 0.35),
           }).addTo(group);
         }
       }
@@ -337,19 +351,21 @@ export function SuptMap({
         });
       }
 
-      // Events (subtle grey-blue dots — not SUPT targets)
+      // Events (subtle age-coloured dots — not SUPT targets)
       if (vis.events) {
       const sorted = [...events].sort(
         (a, b) => magValue(a.magnitude) - magValue(b.magnitude),
       );
+      const onDark =
+        basemapRef.current === "satellite" || basemapRef.current === "dark";
       for (const ev of sorted) {
         const age = eventAge01(ev.time, tRange.tMin, tRange.tMax);
         L.circleMarker([ev.latitude, ev.longitude], {
           radius: Math.max(2, leafletMagRadius(ev.magnitude) * 0.55),
-          color: "rgba(0,0,0,0.2)",
-          weight: 0.5,
+          color: onDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.25)",
+          weight: 0.6,
           fillColor: timeAgeColor(age),
-          fillOpacity: 0.35,
+          fillOpacity: onDark ? 0.55 : 0.35,
         }).addTo(group);
       }
       }
@@ -418,10 +434,12 @@ export function SuptMap({
       });
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      L.tileLayer(basemapTileUrl("voyager"), {
-        ...basemapTileOptions("voyager"),
-        attribution: basemapTileOptions("voyager").attribution + " · SUPT overlay SES",
+      const kind = basemapRef.current;
+      const tiles = L.tileLayer(basemapTileUrl(kind), {
+        ...basemapTileOptions(kind),
+        attribution: basemapTileOptions(kind).attribution + " · SUPT overlay SES",
       }).addTo(map);
+      tileRef.current = tiles;
 
       const view = node.mapView ?? node.bbox;
       const pad = node.mapPad ?? 0.015;
@@ -464,10 +482,35 @@ export function SuptMap({
         mapRef.current.remove();
         mapRef.current = null;
         layersRef.current = null;
+        tileRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
+
+  // Swap basemap tiles when user toggles Sat / Map / Dark (shared localStorage pref)
+  useEffect(() => {
+    let cancelled = false;
+    async function swap() {
+      const L = await import("leaflet");
+      const map = mapRef.current;
+      if (cancelled || !map) return;
+      if (tileRef.current) {
+        map.removeLayer(tileRef.current);
+        tileRef.current = null;
+      }
+      const tiles = L.tileLayer(basemapTileUrl(basemap), {
+        ...basemapTileOptions(basemap),
+        attribution: basemapTileOptions(basemap).attribution + " · SUPT overlay SES",
+      }).addTo(map);
+      tileRef.current = tiles;
+      void drawRef.current();
+    }
+    void swap();
+    return () => {
+      cancelled = true;
+    };
+  }, [basemap]);
 
   useEffect(() => {
     void drawRef.current();
@@ -501,7 +544,8 @@ export function SuptMap({
   return (
     <div
       className={cn(
-        "relative overflow-hidden bg-[#d8e0e8]",
+        "relative overflow-hidden",
+        basemap === "satellite" || basemap === "dark" ? "bg-[#0e1014]" : "bg-[#d8e0e8]",
         fullscreen
           ? "fixed inset-0 z-[100] rounded-none"
           : "h-full w-full rounded-lg",
@@ -556,6 +600,44 @@ export function SuptMap({
           >
             <HelpCircle className="size-3.5" />
           </Button>
+        </div>
+      )}
+
+      {/* Basemap viewer — Sat default (best for SUPT fabric contrast) */}
+      {showControls && (
+        <div
+          className="absolute top-2 right-2 z-20 flex gap-0.5 rounded-md border border-border bg-card/95 p-0.5 shadow-md backdrop-blur-sm"
+          role="group"
+          aria-label="Map basemap"
+        >
+          {(
+            [
+              ["satellite", "Sat"],
+              ["voyager", "Map"],
+              ["dark", "Dark"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => selectBasemap(k)}
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                basemap === k
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title={
+                k === "satellite"
+                  ? "Satellite 2D (Esri) — default for SUPT"
+                  : k === "voyager"
+                    ? "Street map (CARTO Voyager)"
+                    : "Dark map (CARTO)"
+              }
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
 
