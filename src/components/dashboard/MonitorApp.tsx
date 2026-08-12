@@ -37,6 +37,9 @@ import { SwirEoPanel } from "@/components/feeds/SwirEoPanel";
 import { SarEoPanel } from "@/components/feeds/SarEoPanel";
 import { EventTable } from "@/components/dashboard/EventTable";
 import { SesNetworkBar } from "@/components/dashboard/SesNetworkBar";
+import { AlertHonestyStrip } from "@/components/desk/AlertHonestyStrip";
+import { OfficialDeskStrip } from "@/components/desk/OfficialDeskStrip";
+import { RateStrip } from "@/components/desk/RateStrip";
 import { buildContinuumReport } from "@/lib/supt/continuum";
 import { learnFromObservation } from "@/lib/supt/epochLog";
 import { fetchSchumann } from "@/lib/supt/earthFeedsServer";
@@ -49,10 +52,15 @@ import { getFocusNode } from "@/lib/seismic/focus-nodes";
 import type { FocusNodeId, QuakeEvent, SwarmCluster } from "@/lib/seismic/types";
 import { fetchCatalog, type CatalogPayload, type WindowKey } from "@/lib/seismic/server";
 import { emptyCatalog, normalizeCatalog } from "@/lib/seismic/catalog";
+import {
+  loadClientCatalog,
+  saveClientCatalog,
+} from "@/lib/seismic/clientCatalogCache";
 import { getAuthority, isIngvGossipNode } from "@/lib/seismic/authority";
 import {
   parseSesHandoff,
   syncBoardLocation,
+  sentinelFocusUrl,
 } from "@/lib/seismic/ses-handoff";
 import {
   documentTitleForNode,
@@ -72,9 +80,19 @@ import { mapFillHeightPx, preferCollapsedChrome } from "@/lib/ui/breakpoints";
 import { useViewport } from "@/lib/ui/useViewport";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ShareMenu } from "@/components/ui/ShareMenu";
+import { detectLocale, setLocale, applyDocumentLang } from "@/lib/i18n/locale";
+import { t, type Locale } from "@/lib/i18n/messages";
 import { cn, formatDateTime, formatMag, formatRelativeTime, magValue } from "@/lib/utils";
 
-type TabKey = "map" | "supt" | "depth" | "timeline" | "swarm" | "catalog" | "feeds";
+type TabKey =
+  | "map"
+  | "supt"
+  | "depth"
+  | "timeline"
+  | "swarm"
+  | "catalog"
+  | "feeds"
+  | "links";
 
 const WINDOWS: { key: WindowKey; label: string }[] = [
   { key: "24h", label: "24h" },
@@ -91,15 +109,22 @@ const DEPTH_GATES: { km: number | null; label: string }[] = [
   { km: null, label: "All Z" },
 ];
 
-const TABS: { key: TabKey; label: string; icon: ComponentType<{ className?: string }> }[] = [
-  { key: "map", label: "Map", icon: MapIcon },
-  { key: "supt", label: "SUPT", icon: Crosshair },
-  { key: "depth", label: "Depth", icon: Layers },
-  { key: "timeline", label: "Time", icon: Activity },
-  { key: "swarm", label: "Swarms", icon: Waves },
-  { key: "feeds", label: "Feeds", icon: Satellite },
-  { key: "catalog", label: "List", icon: Database },
-];
+function tabDefs(locale: Locale): {
+  key: TabKey;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}[] {
+  return [
+    { key: "map", label: t(locale, "tabMap"), icon: MapIcon },
+    { key: "supt", label: t(locale, "tabSupt"), icon: Crosshair },
+    { key: "depth", label: t(locale, "tabDepth"), icon: Layers },
+    { key: "timeline", label: t(locale, "tabTime"), icon: Activity },
+    { key: "swarm", label: t(locale, "tabSwarm"), icon: Waves },
+    { key: "feeds", label: t(locale, "tabFeeds"), icon: Satellite },
+    { key: "catalog", label: t(locale, "tabList"), icon: Database },
+    { key: "links", label: t(locale, "tabLinks"), icon: SlidersHorizontal },
+  ];
+}
 
 type Props = {
   initial?: CatalogPayload | null;
@@ -114,6 +139,8 @@ export function MonitorApp({ initial }: Props) {
 
   const [data, setData] = useState<CatalogPayload>(safeInitial);
   const handoff = useMemo(() => parseSesHandoff(), []);
+  const [locale, setLocaleState] = useState<Locale>("en");
+  const [offlineBanner, setOfflineBanner] = useState(false);
   const [fromSes, setFromSes] = useState(handoff.fromSes);
   const [nodeId, setNodeId] = useState<FocusNodeId>(() => {
     if (typeof window !== "undefined") {
@@ -128,7 +155,8 @@ export function MonitorApp({ initial }: Props) {
   const [windowKey, setWindowKey] = useState<WindowKey>(() => {
     if (typeof window !== "undefined") {
       const w = new URLSearchParams(window.location.search).get("window");
-      if (w === "24h" || w === "48h" || w === "7d" || w === "30d" || w === "ytd") return w;
+      if (w === "1d" || w === "24h") return "24h";
+      if (w === "48h" || w === "7d" || w === "30d" || w === "ytd") return w;
     }
     return safeInitial.window?.key ?? "7d";
   });
@@ -162,7 +190,19 @@ export function MonitorApp({ initial }: Props) {
     setQuiet(getQuietMode());
     setQuietSource(getQuietSource());
     setHeaderCollapsedUser(getHeaderCollapsedPref());
+    const loc = detectLocale();
+    setLocaleState(loc);
+    applyDocumentLang(loc);
   }, []);
+
+  const tabs = useMemo(() => tabDefs(locale), [locale]);
+
+  const toggleLang = useCallback(() => {
+    const next: Locale = locale === "it" ? "en" : "it";
+    setLocale(next);
+    setLocaleState(next);
+    applyDocumentLang(next);
+  }, [locale]);
 
   const node = useMemo(() => getFocusNode(nodeId), [nodeId]);
   const authority = useMemo(() => getAuthority(nodeId), [nodeId]);
@@ -189,6 +229,18 @@ export function MonitorApp({ initial }: Props) {
           },
         });
         const normalized = normalizeCatalog(result);
+        if (normalized.events.length > 0) {
+          saveClientCatalog(nodeId, windowKey, normalized);
+          setOfflineBanner(false);
+        } else if (normalized.error) {
+          const cached = loadClientCatalog(nodeId, windowKey);
+          if (cached?.events?.length) {
+            setData(normalizeCatalog({ ...cached, error: normalized.error, degraded: true }));
+            setLastError(normalized.error);
+            setOfflineBanner(true);
+            return;
+          }
+        }
         const ids = new Set((normalized.events ?? []).map((e) => e.id));
         if (prevIdsRef.current.size > 0) {
           let n = 0;
@@ -197,14 +249,28 @@ export function MonitorApp({ initial }: Props) {
         }
         prevIdsRef.current = ids;
         setData(normalized);
-        setLastError(normalized.error ?? null);
+        setLastError(
+          normalized.degraded
+            ? `${t(locale, "degraded")}: ${normalized.error ?? ""}`
+            : (normalized.error ?? null),
+        );
+        if (normalized.degraded) setOfflineBanner(true);
       } catch (err) {
-        setLastError(err instanceof Error ? err.message : "Catalog load failed");
+        const cached = loadClientCatalog(nodeId, windowKey);
+        if (cached?.events?.length) {
+          setData(normalizeCatalog({ ...cached, degraded: true }));
+          setOfflineBanner(true);
+          setLastError(
+            err instanceof Error ? err.message : t(locale, "offline"),
+          );
+        } else {
+          setLastError(err instanceof Error ? err.message : "Catalog load failed");
+        }
       } finally {
         if (!opts?.silent) setLoading(false);
       }
     },
-    [nodeId, windowKey, minMag, maxDepthKm],
+    [nodeId, windowKey, minMag, maxDepthKm, locale],
   );
 
   useEffect(() => {
@@ -253,6 +319,7 @@ export function MonitorApp({ initial }: Props) {
   useEffect(() => {
     if (!autoRefresh) return;
     const id = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       void load({ silent: true });
     }, 60_000);
     return () => window.clearInterval(id);
@@ -403,6 +470,17 @@ export function MonitorApp({ initial }: Props) {
                 onDismissFromSes={() => setFromSes(false)}
               />
               <div className="flex items-center gap-0.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 min-w-9 px-1.5 font-mono text-[10px]"
+                  onClick={toggleLang}
+                  title={locale === "it" ? "English" : "Italiano"}
+                  aria-label={locale === "it" ? "Switch to English" : "Passa all'italiano"}
+                >
+                  {locale === "it" ? t(locale, "langToggleEn") : t(locale, "langToggle")}
+                </Button>
                 <Button type="button" variant={headerCollapsed ? "default" : "ghost"} size="sm" className="h-8 w-8 px-0" onClick={toggleHeader} title={headerCollapsed ? "Expand header" : "Collapse header"} aria-expanded={!headerCollapsed}>
                   {headerCollapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}
                 </Button>
@@ -411,7 +489,7 @@ export function MonitorApp({ initial }: Props) {
                 <Button variant={quiet ? "default" : "ghost"} size="sm" onClick={toggleQuiet} className="h-8 w-8 px-0" title={quiet ? "Quiet on" : "Quiet mode"}>
                   {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
                 </Button>
-                <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading} className="h-8 w-8 px-0" title="Refresh">
+                <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading} className="h-8 w-8 px-0" title={t(locale, "refresh")}>
                   <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
                 </Button>
                 {!headerCollapsed && (
@@ -424,6 +502,18 @@ export function MonitorApp({ initial }: Props) {
           </div>
 
           <PulseStrip continuum={continuum} intensity={intensity} newSincePoll={newSincePoll} rate6h={swarm.rate6h} className="w-full min-w-0 border-0 bg-transparent px-0 py-0" />
+
+          {!headerCollapsed && (
+            <div className="pt-1">
+              <AlertHonestyStrip node={node} locale={locale} />
+            </div>
+          )}
+
+          {(isIngvGossipNode(nodeId) || !headerCollapsed) && (
+            <div className="pt-1">
+              <OfficialDeskStrip nodeId={nodeId} locale={locale} compact />
+            </div>
+          )}
 
           {!headerCollapsed && (
             <div className="flex flex-wrap items-center gap-1 pt-0.5">
@@ -484,18 +574,26 @@ export function MonitorApp({ initial }: Props) {
       </header>
 
       <main className="mx-auto max-w-[1400px] min-w-0 overflow-x-hidden px-2 py-1.5 sm:px-4 sm:py-2">
-        {loading && events.length === 0 && (
-          <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground">
-            <RefreshCw className="size-3.5 animate-spin" /> Loading catalog…
+        {offlineBanner && (
+          <div className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-1.5 text-[11px] text-foreground">
+            {t(locale, "offline")}
           </div>
         )}
 
+        {loading && events.length === 0 && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground">
+            <RefreshCw className="size-3.5 animate-spin" /> {t(locale, "loading")}
+          </div>
+        )}
+
+        <RateStrip swarm={swarm} locale={locale} className="mb-2" />
+
         {tab !== "map" && tab !== "supt" && (
           <section className="mb-2 grid grid-cols-4 gap-1 sm:gap-1.5">
-            <Kpi label="Events" value={String(data?.count ?? events.length)} sub={windowKey} />
-            <Kpi label="Largest" value={largest ? `M${formatMag(largest.magnitude)}` : "—"} sub={largest ? formatRelativeTime(largest.time) : "—"} danger={!!largest && magValue(largest.magnitude) >= 4} />
-            <Kpi label="1h / 6h" value={`${swarm.rate1h} / ${swarm.rate6h}`} sub={`${swarm.rate24h} / 24h`} warn={!!swarm.active} />
-            <Kpi label="Mean Z" value={events.length ? `${swarm.meanDepthKm.toFixed(1)} km` : "—"} sub={swarm.active ? "swarm on" : `${swarm.clusters?.length ?? 0} clusters`} warn={!!swarm.active} />
+            <Kpi label={t(locale, "events")} value={String(data?.count ?? events.length)} sub={windowKey} />
+            <Kpi label={t(locale, "largest")} value={largest ? `M${formatMag(largest.magnitude)}` : "—"} sub={largest ? formatRelativeTime(largest.time) : "—"} danger={!!largest && magValue(largest.magnitude) >= 4} />
+            <Kpi label="1h / 6h" value={`${swarm.rate1h} / ${swarm.rate6h}`} sub={`${swarm.rate24h} / 24h · ${swarm.rate7d ?? 0} / 7d`} warn={!!swarm.active} />
+            <Kpi label={t(locale, "meanDepth")} value={events.length ? `${swarm.meanDepthKm.toFixed(1)} km` : "—"} sub={`${((swarm.shallowFraction ?? 0) * 100).toFixed(0)}% ${t(locale, "shallowPct")}`} warn={!!swarm.active} />
           </section>
         )}
 
@@ -507,11 +605,11 @@ export function MonitorApp({ initial }: Props) {
         )}
 
         <div ref={tabsRef} className="mb-2 flex gap-0.5 overflow-x-auto border-b border-border pb-0">
-          {TABS.map((t) => {
-            const Icon = t.icon;
+          {tabs.map((tDef) => {
+            const Icon = tDef.icon;
             return (
-              <button key={t.key} type="button" onClick={() => setTab(t.key)} className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-medium transition-colors sm:px-3", tab === t.key ? "border-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                <Icon className="size-3.5" />{t.label}
+              <button key={tDef.key} type="button" onClick={() => setTab(tDef.key)} className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-medium transition-colors sm:px-3", tab === tDef.key ? "border-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                <Icon className="size-3.5" />{tDef.label}
               </button>
             );
           })}
@@ -618,6 +716,32 @@ export function MonitorApp({ initial }: Props) {
           </div>
         )}
 
+        {tab === "links" && (
+          <div className="space-y-3">
+            <AlertHonestyStrip node={node} locale={locale} />
+            <OfficialDeskStrip nodeId={nodeId} locale={locale} />
+            <p className="text-[11px] text-muted-foreground">
+              {t(locale, "dataLine")} · {t(locale, "ownership")}
+            </p>
+            <a
+              href={sentinelFocusUrl(nodeId)}
+              className="inline-flex min-h-9 items-center text-[12px] font-medium text-accent hover:underline"
+            >
+              {t(locale, "backToSes")}
+            </a>
+            {!quiet && (
+              <details className="rounded-lg border border-border bg-card">
+                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Extended observation library
+                </summary>
+                <div className="border-t border-border p-2">
+                  <ObservationLinks nodeId={nodeId} />
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+
         {selected && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent/20 bg-card px-3 py-2 text-xs">
             <div className="min-w-0">
@@ -627,6 +751,12 @@ export function MonitorApp({ initial }: Props) {
             <Button size="sm" variant="ghost" className="h-8" onClick={() => setSelectedId(null)}>Clear</Button>
           </div>
         )}
+
+        <footer className="mt-4 border-t border-border pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 text-[10px] leading-snug text-muted-foreground">
+          <p className="font-medium text-foreground/80">{t(locale, "emergency")}</p>
+          <p className="mt-1">{t(locale, "honesty")}</p>
+          <p className="mt-1">{t(locale, "ownership")} · {t(locale, "dataLine")}</p>
+        </footer>
       </main>
     </div>
   );

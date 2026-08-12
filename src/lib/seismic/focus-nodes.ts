@@ -27,11 +27,11 @@ export const FOCUS_NODES: Record<FocusNodeId, FocusNode> = {
     provider: "gossip",
     fallbackProvider: "ingv",
     bbox: {
-      // Catalog query box (dense GOSSIP microseismicity)
-      minLat: 40.78,
-      maxLat: 40.9,
-      minLon: 14.05,
-      maxLon: 14.22,
+      // SES mediterranean geographic contract (must match hub inject bounds)
+      minLat: 40.7,
+      maxLat: 40.95,
+      minLon: 13.95,
+      maxLon: 14.35,
     },
     center: { lat: 40.827, lon: 14.139 },
     mapPad: 0.01,

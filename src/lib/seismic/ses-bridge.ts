@@ -26,10 +26,13 @@ export type SesEqFeature = {
     time: number | null;
     updated?: number;
     url?: string;
+    detail?: string;
     title?: string;
     type?: string;
     status?: string;
     magType?: string | null;
+    net?: string;
+    sources?: string;
     /** SES extension: which catalog family supplied the feature */
     sesSource?: SeismicProviderId | "ingv-family" | "usgs-family";
     sesNodeId?: FocusNodeId;
@@ -56,18 +59,38 @@ export function toSesEqFeature(
   e: QuakeEvent,
   nodeId?: FocusNodeId,
 ): SesEqFeature {
+  const net =
+    e.provider === "usgs"
+      ? e.author?.slice(0, 2) || "us"
+      : e.provider === "gossip"
+        ? "ov"
+        : "iv";
+  const sources =
+    e.provider === "usgs"
+      ? "USGS"
+      : e.provider === "gossip"
+        ? "INGV-OV"
+        : "INGV";
+  const place = e.place || "";
+  const title =
+    e.magnitude != null
+      ? `M ${e.magnitude.toFixed(1)} - ${place}`
+      : place || e.id;
   return {
     type: "Feature",
     id: e.id,
     properties: {
       mag: e.magnitude,
-      place: e.place,
+      place: place || null,
       time: e.time,
       updated: e.time,
-      title: e.magnitude != null ? `M${e.magnitude.toFixed(1)} - ${e.place}` : e.place,
-      type: e.eventType,
+      title,
+      type: e.eventType || "earthquake",
       status: "reviewed",
       magType: e.magType,
+      net,
+      sources,
+      detail: place || undefined,
       sesSource: e.provider,
       sesNodeId: nodeId,
     },

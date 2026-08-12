@@ -149,10 +149,12 @@ export function analyzeSwarmActivity(
   const h1 = now - 3_600_000;
   const h6 = now - 6 * 3_600_000;
   const h24 = now - 24 * 3_600_000;
+  const d7 = now - 7 * 24 * 3_600_000;
 
   const in1 = events.filter((e) => e.time >= h1);
   const in6 = events.filter((e) => e.time >= h6);
   const in24 = events.filter((e) => e.time >= h24);
+  const in7d = events.filter((e) => e.time >= d7);
 
   const depths = events.map((e) => e.depthKm);
   const shallow = depths.filter((d) => d < 3).length;
@@ -196,6 +198,7 @@ export function analyzeSwarmActivity(
     rate24h: in24.length,
     rate6h: in6.length,
     rate1h: in1.length,
+    rate7d: in7d.length,
     maxMagWindow: maxMagOf(events),
     meanDepthKm: mean(depths),
     shallowFraction: depths.length ? shallow / depths.length : 0,

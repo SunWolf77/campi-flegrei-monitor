@@ -152,6 +152,10 @@ function sesCatalogPlugin(): Plugin {
             res.statusCode = 204;
             res.setHeader("access-control-allow-origin", "*");
             res.setHeader("access-control-allow-methods", "GET, OPTIONS");
+            res.setHeader(
+              "access-control-expose-headers",
+              "X-Ses-Feed, X-Catalog-Degraded, ETag, Cache-Control",
+            );
             res.end();
             return;
           }
@@ -168,6 +172,9 @@ function sesCatalogPlugin(): Plugin {
               authority: string;
               provider: string;
               sourceUrl: string;
+              fetchedAt?: number;
+              degraded?: boolean;
+              error?: string;
             }>;
           };
           const bridge = (await server.ssrLoadModule(
@@ -184,19 +191,33 @@ function sesCatalogPlugin(): Plugin {
             focusNodeFromSesParam: (raw: string | null) => string | null;
             sesDragonId: (id: string) => string;
           };
+          const mapWindow = (raw: string): string => {
+            if (raw === "1d" || raw === "24h") return "24h";
+            if (raw === "48h" || raw === "7d" || raw === "30d" || raw === "ytd")
+              return raw;
+            return "7d";
+          };
           const nodeParam = u.searchParams.get("node") || u.searchParams.get("sesNode");
-          const windowKey = u.searchParams.get("window") || "7d";
+          const windowKey = mapWindow(u.searchParams.get("window") || "7d");
           const nodeId =
             handoff.focusNodeFromSesParam(nodeParam) ?? "campi-flegrei";
           const catalog = await mod.loadCatalogPayload({
             nodeId,
             window: windowKey,
-            maxDepthKm: nodeId === "campi-flegrei" ? 8 : undefined,
+            maxDepthKm:
+              nodeId === "campi-flegrei" || nodeId === "vesuvius" ? 8 : undefined,
           });
           const collection = bridge.toSesEqCollection(
             catalog.events as never[],
             nodeId,
           );
+          const degraded = Boolean(catalog.degraded);
+          const note =
+            nodeId === "campi-flegrei"
+              ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read."
+              : nodeId === "vesuvius"
+                ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read."
+                : "USGS authority for Tonga–Kermadec.";
           const body = JSON.stringify({
             ...collection,
             metadata: {
@@ -211,12 +232,28 @@ function sesCatalogPlugin(): Plugin {
               provider: catalog.provider,
               sourceUrl: catalog.sourceUrl,
               board: "campi-flegrei-monitor",
+              degraded,
+              error: catalog.error,
+              note,
             },
           });
           res.statusCode = 200;
           res.setHeader("content-type", "application/json; charset=utf-8");
           res.setHeader("access-control-allow-origin", "*");
-          res.setHeader("cache-control", "public, max-age=60");
+          res.setHeader(
+            "cache-control",
+            "public, max-age=60, stale-while-revalidate=120",
+          );
+          res.setHeader("x-ses-feed", "campi-flegrei-monitor");
+          res.setHeader("x-catalog-degraded", degraded ? "1" : "0");
+          res.setHeader(
+            "etag",
+            `"${nodeId}-${windowKey}-${catalog.fetchedAt ?? 0}-${catalog.count}"`,
+          );
+          res.setHeader(
+            "access-control-expose-headers",
+            "X-Ses-Feed, X-Catalog-Degraded, ETag, Cache-Control",
+          );
           if (method === "HEAD") {
             res.end();
             return;
@@ -225,9 +262,24 @@ function sesCatalogPlugin(): Plugin {
         } catch (err) {
           console.error("[ses] catalog feed failed:", err);
           if (!res.headersSent) {
-            res.statusCode = 500;
+            res.statusCode = 200;
             res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ error: "ses catalog failed" }));
+            res.setHeader("access-control-allow-origin", "*");
+            res.setHeader("x-catalog-degraded", "1");
+            res.setHeader("x-ses-feed", "campi-flegrei-monitor");
+            res.end(
+              JSON.stringify({
+                type: "FeatureCollection",
+                features: [],
+                metadata: {
+                  generated: Date.now(),
+                  count: 0,
+                  degraded: true,
+                  error: err instanceof Error ? err.message : "ses catalog failed",
+                  board: "campi-flegrei-monitor",
+                },
+              }),
+            );
           }
         }
       });

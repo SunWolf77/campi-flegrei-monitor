@@ -12,10 +12,10 @@ import { getAuthority, resolveProviderChain } from "./authority";
 import {
   emptyCatalog,
   filterLocalizedEvents,
-  normalizeCatalog,
   type CatalogPayload,
   type WindowKey,
 } from "./catalog";
+import { loadLastGood, saveLastGood } from "./catalogLastGood";
 
 export type { CatalogPayload, WindowKey };
 
@@ -64,7 +64,6 @@ function slimEvents(events: QuakeEvent[]): QuakeEvent[] {
     author: e.author,
     provider: e.provider,
     catalog: e.catalog,
-    // no raw, no contributor noise
   }));
 }
 
@@ -72,7 +71,6 @@ function slimEvents(events: QuakeEvent[]): QuakeEvent[] {
 function slimSwarm(swarm: SwarmAnalysis): SwarmAnalysis {
   const slim = (c: NonNullable<SwarmAnalysis["active"]>) => ({
     ...c,
-    // Keep ids for resolve; cap for transport (UI uses topEvents + count)
     eventIds: (c.eventIds ?? []).slice(0, 200),
     topEvents: (c.topEvents ?? []).slice(0, 8),
   });
@@ -90,7 +88,6 @@ export type CatalogQuery = {
   minMagnitude?: number;
   maxDepthKm?: number;
   forceProvider?: SeismicProviderId;
-  /** When true, return KPI-only shell (no events) for ultra-light SSR. */
   metaOnly?: boolean;
 };
 
@@ -103,7 +100,6 @@ export async function loadCatalogPayload(input: CatalogQuery = {}): Promise<Cata
     const policy = getAuthority(nodeId);
     const { chain } = resolveProviderChain(nodeId, input.forceProvider);
 
-    // Only allow force within family
     const forceProvider =
       input.forceProvider && chain.includes(input.forceProvider)
         ? input.forceProvider
@@ -150,7 +146,7 @@ export async function loadCatalogPayload(input: CatalogQuery = {}): Promise<Cata
 
       const swarm = slimSwarm(buildSwarm(events, nodeId));
 
-      return {
+      const payload: CatalogPayload = {
         events,
         provider: result?.provider ?? forceProvider ?? node.provider,
         fetchedAt: result?.fetchedAt ?? Date.now(),
@@ -165,9 +161,24 @@ export async function loadCatalogPayload(input: CatalogQuery = {}): Promise<Cata
         swarm,
         authority: result?.authority ?? policy.authority,
         attempted: result?.attempted ?? [result?.provider ?? node.provider],
+        degraded: false,
       };
+
+      if (events.length > 0) {
+        saveLastGood(nodeId, windowKey, payload);
+      }
+      return payload;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Catalog fetch failed";
+      const cached = loadLastGood(nodeId, windowKey);
+      if (cached && cached.events.length > 0) {
+        return {
+          ...cached,
+          error: message,
+          degraded: true,
+          attempted: [],
+        };
+      }
       return {
         ...emptyCatalog({
           nodeId,
@@ -177,6 +188,7 @@ export async function loadCatalogPayload(input: CatalogQuery = {}): Promise<Cata
         }),
         authority: policy.authority,
         attempted: [],
+        degraded: false,
       };
     }
 }
@@ -186,10 +198,3 @@ export const fetchCatalog = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<CatalogPayload> => {
     return loadCatalogPayload(data ?? {});
   });
-
-export function coerceCatalogPayload(
-  raw: unknown,
-  fallback?: Partial<CatalogPayload>,
-): CatalogPayload {
-  return normalizeCatalog(raw, fallback);
-}

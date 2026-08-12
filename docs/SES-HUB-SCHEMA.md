@@ -66,7 +66,7 @@ GET /api/ses/catalog?node={dragonId}&window={windowKey}
 | Param | Default | Notes |
 |-------|---------|--------|
 | `node` or `sesNode` | `campi-flegrei` (board default) | Dragon or alias |
-| `window` | `7d` | `24h` \| `48h` \| `7d` \| `30d` \| `ytd` |
+| `window` | `7d` | `1d`\|`24h`\|`48h`\|`7d`\|`30d`\|`ytd` (`1d` → `24h`) |
 
 **CORS:** `Access-Control-Allow-Origin: *`  
 **Cache:** `public, max-age=60, stale-while-revalidate=120`  

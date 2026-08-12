@@ -30,9 +30,9 @@ function Pending() {
     <div className="flex min-h-dvh items-center justify-center bg-background text-foreground">
       <div className="text-center">
         <div className="mx-auto mb-3 size-8 animate-pulse rounded-full border-2 border-border border-t-accent" />
-        <p className="text-sm text-muted-foreground">Starting Campi Flegrei monitor…</p>
+        <p className="text-sm text-muted-foreground">Campi Flegrei · SES desk</p>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          INGV-OV authority · client catalog load
+          INGV-OV authority · observation only · not a forecast
         </p>
       </div>
     </div>

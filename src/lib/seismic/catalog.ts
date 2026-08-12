@@ -28,6 +28,8 @@ export type CatalogPayload = {
   authority?: "ingv-family" | "usgs-family";
   /** Providers tried (same family only). */
   attempted?: SeismicProviderId[];
+  /** True when serving last-good after upstream failure. */
+  degraded?: boolean;
 };
 
 export function emptySwarm(now = Date.now()): SwarmAnalysis {
@@ -38,6 +40,7 @@ export function emptySwarm(now = Date.now()): SwarmAnalysis {
     rate24h: 0,
     rate6h: 0,
     rate1h: 0,
+    rate7d: 0,
     maxMagWindow: 0,
     meanDepthKm: 0,
     shallowFraction: 0,
@@ -224,6 +227,7 @@ export function normalizeCatalog(
       rate24h: Number(s.rate24h) || 0,
       rate6h: Number(s.rate6h) || 0,
       rate1h: Number(s.rate1h) || 0,
+      rate7d: Number(s.rate7d) || 0,
       maxMagWindow: Number(s.maxMagWindow) || 0,
       meanDepthKm: Number(s.meanDepthKm) || 0,
       shallowFraction: Number(s.shallowFraction) || 0,

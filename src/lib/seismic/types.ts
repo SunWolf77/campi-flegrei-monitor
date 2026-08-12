@@ -125,6 +125,8 @@ export type SwarmAnalysis = {
   rate1h: number;
   rate6h: number;
   rate24h: number;
+  /** Event count in last 7 days (observation only). */
+  rate7d: number;
   meanDepthKm: number;
   /** Max magnitude across the full analysis window. */
   maxMagWindow: number;
