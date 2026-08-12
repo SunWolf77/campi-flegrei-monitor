@@ -1,7 +1,7 @@
 import { AlertTriangle, ExternalLink, Shield } from "lucide-react";
 import type { FocusNode } from "@/lib/seismic/types";
 import type { Locale } from "@/lib/i18n/messages";
-import { t } from "@/lib/i18n/messages";
+import { statusNoteForNode, t } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -17,11 +17,7 @@ type Props = {
 export function AlertHonestyStrip({ node, locale, className }: Props) {
   const officialHref =
     node.volcano?.officialMapUrl ?? "https://www.ov.ingv.it/";
-  const statusNote =
-    node.volcano?.statusNote ??
-    (locale === "it"
-      ? "Contesto operativo INGV-OV (osservazione)."
-      : "INGV-OV operational context (observation).");
+  const statusNote = statusNoteForNode(locale, node.id);
 
   return (
     <div

@@ -2,66 +2,73 @@ import type { ContinuumReport } from "@/lib/supt/continuum";
 import type { SwarmIntensity } from "@/lib/seismic/intensity";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  intensityLabel,
+  t,
+  type Locale,
+} from "@/lib/i18n/messages";
 
 type Props = {
   continuum: ContinuumReport;
   intensity: SwarmIntensity;
   newSincePoll: number;
   rate6h: number;
+  locale?: Locale;
   className?: string;
 };
 
-function energyWord(eii: number, rpam: string): string {
-  if (rpam === "ACTIVE" || eii >= 0.85) return "High";
-  if (rpam === "ELEVATED" || eii >= 0.6) return "Elev.";
-  if (eii >= 0.35) return "Mod.";
-  return "Base";
+function energyWord(eii: number, rpam: string, locale: Locale): string {
+  if (rpam === "ACTIVE" || eii >= 0.85) return t(locale, "energyHigh");
+  if (rpam === "ELEVATED" || eii >= 0.6) return t(locale, "energyElev");
+  if (eii >= 0.35) return t(locale, "energyMod");
+  return t(locale, "energyBase");
 }
 
-function phaseWord(rpam: string): string {
-  if (rpam === "ACTIVE") return "High load";
-  if (rpam === "ELEVATED") return "Elevated";
-  return "Watching";
+function phaseWord(rpam: string, locale: Locale): string {
+  if (rpam === "ACTIVE") return t(locale, "phaseHighLoad");
+  if (rpam === "ELEVATED") return t(locale, "phaseElevated");
+  return t(locale, "phaseWatching");
 }
 
-/** Compact global pulse — plain labels, scan-friendly. */
+/** Compact global pulse — plain labels, scan-friendly, bilingual. */
 export function PulseStrip({
   continuum: C,
   intensity,
   newSincePoll,
   rate6h,
+  locale = "en",
   className,
 }: Props) {
   return (
     <div
       className={cn("flex items-center gap-1 overflow-x-auto text-[11px]", className)}
       role="status"
-      aria-label="Live pulse strip"
+      aria-label={t(locale, "pulseAria")}
     >
       <Pill
-        label="Energy"
-        value={energyWord(C.eii, C.rpam)}
-        title={`Energy load index ${C.eii.toFixed(2)} · ${C.rpam}`}
+        label={t(locale, "pulseEnergy")}
+        value={energyWord(C.eii, C.rpam, locale)}
+        title={`EII ${C.eii.toFixed(2)} · ${C.rpam}`}
         tone={C.eii >= 0.85 ? "critical" : C.eii >= 0.6 ? "warn" : "muted"}
       />
       <Pill
-        label="Phase"
-        value={phaseWord(C.rpam)}
+        label={t(locale, "pulsePhase")}
+        value={phaseWord(C.rpam, locale)}
         title={`RPAM ${C.rpam}`}
         tone={
           C.rpam === "ACTIVE" ? "critical" : C.rpam === "ELEVATED" ? "warn" : "muted"
         }
       />
       <Pill
-        label="SR"
+        label={t(locale, "pulseSr")}
         value={String(C.schumannIndex || "—")}
-        title="Schumann resonance index"
+        title="Schumann"
         tone={C.schumannIndex >= 70 ? "warn" : "muted"}
         mono
       />
       <Pill
-        label="Swarm"
-        value={intensity.level}
+        label={t(locale, "pulseSwarm")}
+        value={intensityLabel(locale, intensity.level)}
         title={intensity.note}
         tone={
           intensity.tone === "critical"
@@ -74,9 +81,9 @@ export function PulseStrip({
         }
       />
       <Pill
-        label="6h"
+        label={t(locale, "pulse6h")}
         value={String(rate6h)}
-        title="Events in last 6 hours"
+        title={locale === "it" ? "Eventi nelle ultime 6 ore" : "Events in last 6 hours"}
         mono
         tone="muted"
       />
@@ -87,7 +94,7 @@ export function PulseStrip({
       )}
       <span
         className="ml-auto hidden shrink-0 font-mono text-[10px] text-muted-foreground xl:inline"
-        title="Geomagnetic Kp"
+        title="Kp"
       >
         Kp {C.kp.toFixed(1)}
       </span>

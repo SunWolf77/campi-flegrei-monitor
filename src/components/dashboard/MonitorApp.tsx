@@ -448,7 +448,7 @@ export function MonitorApp({ initial }: Props) {
                   <span className="block truncate sm:inline">{nodeMonitorTitle(nodeId)}</span>
                 </h1>
                 {quiet && (
-                  <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">Quiet</Badge>
+                  <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">{t(locale, "modeLite")}</Badge>
                 )}
               </div>
               {!headerCollapsed && (
@@ -487,8 +487,18 @@ export function MonitorApp({ initial }: Props) {
                 </Button>
                 <ShareMenu ctx={{ nodeId, windowKey, eii: continuum.eii, rpam: continuum.rpam, rate6h: swarm.rate6h, eventCount: events.length, largestMag: largest ? magValue(largest.magnitude) : null }} />
                 {!headerCollapsed && <ThemeToggle />}
-                <Button variant={quiet ? "default" : "ghost"} size="sm" onClick={toggleQuiet} className="h-8 w-8 px-0" title={quiet ? "Quiet on" : "Quiet mode"}>
-                  {quiet ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                <Button variant={quiet ? "default" : "ghost"} size="sm" onClick={toggleQuiet} className="h-8 min-w-9 px-1.5 font-mono text-[10px]" title={quiet ? t(locale, "quietOn") : t(locale, "quietOff")}>
+                  {quiet ? (
+                    <>
+                      <VolumeX className="size-3.5 sm:mr-0.5" />
+                      <span className="hidden sm:inline">{t(locale, "modeLite")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="size-3.5 sm:mr-0.5" />
+                      <span className="hidden sm:inline">{t(locale, "modeFull")}</span>
+                    </>
+                  )}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading} className="h-8 w-8 px-0" title={t(locale, "refresh")}>
                   <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -502,7 +512,7 @@ export function MonitorApp({ initial }: Props) {
             </div>
           </div>
 
-          <PulseStrip continuum={continuum} intensity={intensity} newSincePoll={newSincePoll} rate6h={swarm.rate6h} className="w-full min-w-0 border-0 bg-transparent px-0 py-0" />
+          <PulseStrip continuum={continuum} intensity={intensity} newSincePoll={newSincePoll} rate6h={swarm.rate6h} locale={locale} className="w-full min-w-0 border-0 bg-transparent px-0 py-0" />
 
           {!headerCollapsed && (
             <div className="pt-1">
@@ -637,7 +647,7 @@ export function MonitorApp({ initial }: Props) {
             </Card>
             {!quiet && (
               <details className="rounded-lg border border-border bg-card">
-                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">Observation links</summary>
+                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">{t(locale, "observationLinks")}</summary>
                 <div className="border-t border-border p-2"><ObservationLinks nodeId={nodeId} /></div>
               </details>
             )}
