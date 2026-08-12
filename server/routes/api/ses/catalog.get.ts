@@ -1,6 +1,7 @@
 /**
  * Nitro production — SES merge feed (GeoJSON).
  * GET /api/ses/catalog?window=7d&node=mediterranean
+ * Optional: requireMag=1 to omit GOSSIP N/D magnitudes.
  */
 import { defineEventHandler, getQuery, setHeader } from "h3";
 import { loadCatalogPayload } from "../../../../src/lib/seismic/server";
@@ -21,6 +22,12 @@ function mapWindow(raw: string): WindowKey {
   return "7d";
 }
 
+function truthy(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  const v = raw.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 export default defineEventHandler(async (event) => {
   const q = getQuery(event);
   const nodeParam =
@@ -29,6 +36,7 @@ export default defineEventHandler(async (event) => {
     "";
   const windowParam = typeof q.window === "string" ? q.window : "7d";
   const windowKey = mapWindow(windowParam);
+  const requireMag = truthy(q.requireMag);
   const nodeId: FocusNodeId = focusNodeFromSesParam(nodeParam) ?? "campi-flegrei";
 
   try {
@@ -39,8 +47,11 @@ export default defineEventHandler(async (event) => {
         nodeId === "campi-flegrei" || nodeId === "vesuvius" ? 8 : undefined,
     });
 
-    const collection = toSesEqCollection(catalog.events ?? [], nodeId);
+    const collection = toSesEqCollection(catalog.events ?? [], nodeId, {
+      requireMag,
+    });
     const degraded = Boolean(catalog.degraded);
+    const featureCount = collection.features.length;
 
     setHeader(event, "content-type", "application/json; charset=utf-8");
     setHeader(event, "access-control-allow-origin", "*");
@@ -60,7 +71,7 @@ export default defineEventHandler(async (event) => {
     setHeader(
       event,
       "etag",
-      `"${nodeId}-${windowKey}-${catalog.fetchedAt}-${catalog.count}"`,
+      `"${nodeId}-${windowKey}-${requireMag ? "rm" : "all"}-${catalog.fetchedAt}-${featureCount}"`,
     );
 
     return {
@@ -68,7 +79,7 @@ export default defineEventHandler(async (event) => {
       metadata: {
         ...collection.metadata,
         generated: Date.now(),
-        count: catalog.count,
+        count: featureCount,
         title: `SES focus feed · ${sesDragonId(nodeId)}`,
         authority: catalog.authority,
         nodeId,
@@ -80,11 +91,14 @@ export default defineEventHandler(async (event) => {
         degraded,
         error: catalog.error,
         note:
-          nodeId === "campi-flegrei"
-            ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read."
+          (nodeId === "campi-flegrei"
+            ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read. "
             : nodeId === "vesuvius"
-              ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read."
-              : "USGS authority for Tonga–Kermadec.",
+              ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read. "
+              : "USGS authority for Tonga–Kermadec. ") +
+          (requireMag
+            ? "requireMag=1: unmaged (N/D) events omitted."
+            : "mag may be null (GOSSIP N/D) — never treat as 0; show M—; min-mag filters skip null."),
       },
     };
   } catch (err) {
@@ -103,6 +117,7 @@ export default defineEventHandler(async (event) => {
         error: err instanceof Error ? err.message : "SES catalog failed",
         nodeId,
         board: "campi-flegrei-monitor",
+        magNullPolicy: "keep-null-never-zero",
       },
     };
   }

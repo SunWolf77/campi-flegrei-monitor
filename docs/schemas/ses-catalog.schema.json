@@ -55,7 +55,11 @@
           "properties": {
             "mag": {
               "type": ["number", "null"],
-              "description": "Magnitude; null when N/D (common on GOSSIP Md). Never invent 0."
+              "description": "Magnitude; null when N/D (GOSSIP). Never invent 0. Min-mag filters must skip null."
+            },
+            "magNd": {
+              "type": "boolean",
+              "description": "True when magnitude was published as N/D."
             },
             "place": { "type": ["string", "null"] },
             "time": {

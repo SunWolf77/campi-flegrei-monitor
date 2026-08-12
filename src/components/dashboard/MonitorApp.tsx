@@ -36,6 +36,7 @@ import { SolfataraNewsPanel } from "@/components/feeds/SolfataraNewsPanel";
 import { SwirEoPanel } from "@/components/feeds/SwirEoPanel";
 import { SarEoPanel } from "@/components/feeds/SarEoPanel";
 import { EventTable } from "@/components/dashboard/EventTable";
+import { EventDetailDrawer } from "@/components/dashboard/EventDetailDrawer";
 import { SesNetworkBar } from "@/components/dashboard/SesNetworkBar";
 import { AlertHonestyStrip } from "@/components/desk/AlertHonestyStrip";
 import { OfficialDeskStrip } from "@/components/desk/OfficialDeskStrip";
@@ -743,13 +744,11 @@ export function MonitorApp({ initial }: Props) {
         )}
 
         {selected && (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent/20 bg-card px-3 py-2 text-xs">
-            <div className="min-w-0">
-              <span className="font-mono font-semibold">M{formatMag(selected.magnitude)} {selected.magType}</span>
-              <span className="ml-2 text-muted-foreground">{formatDateTime(selected.time)} · {selected.depthKm.toFixed(1)} km · {selected.place}</span>
-            </div>
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => setSelectedId(null)}>Clear</Button>
-          </div>
+          <EventDetailDrawer
+            event={selected}
+            onClose={() => setSelectedId(null)}
+            locale={locale}
+          />
         )}
 
         <footer className="mt-4 border-t border-border pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 text-[10px] leading-snug text-muted-foreground">

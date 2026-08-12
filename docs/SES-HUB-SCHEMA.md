@@ -133,9 +133,13 @@ Depth is **positive down, kilometres** (not metres). Compatible with USGS-style 
 
 ### Magnitude policy
 
-- `mag` may be **`null`** (GOSSIP N/D).
-- Do **not** coerce null → `0` for energy or sorting as “M0”.
-- `magType` is free text (`Md`, `ML`, `mb`, …).
+- `mag` may be **`null`** (GOSSIP N/D). Never coerced to `0`.
+- Title uses **`M—`** when null so hub UI can render without inventing energy.
+- `properties.magNd: true` marks N/D rows.
+- Metadata: `magNullPolicy` (`keep-null-never-zero` | `omit-unmaged`), `magNullCount`, `magFiniteCount`.
+- Min-mag filters on the hub **must skip null** (null ≠ 0).
+- Optional query: `requireMag=1` omits unmaged events for stats-only consumers; default densify **keeps** null-mag points so swarm density is complete.
+- `magType` is free text (`Md`, `ML`, `N/D`, …).
 
 ---
 

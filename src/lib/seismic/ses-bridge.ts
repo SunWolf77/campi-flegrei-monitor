@@ -11,6 +11,12 @@
  *  2. When focus = mediterranean / campi-flegrei: REPLACE in-bounds USGS
  *     features with `toSesEqFeatures(events)` from this node (INGV authority).
  *  3. Never call both USGS FDSN and INGV for the same CF bbox in one tick.
+ *
+ * Mag N/D policy (GOSSIP Md often N/D):
+ *  - Default densify: keep events with explicit mag: null (never invent 0).
+ *  - Title uses "M—" so hub can render without treating as M0.
+ *  - Min-mag filters must treat null as non-matching (not as 0).
+ *  - Optional requireMag=true drops unmaged for stats-only consumers.
  */
 
 import type { FocusNodeId, QuakeEvent, SeismicProviderId } from "./types";
@@ -33,6 +39,8 @@ export type SesEqFeature = {
     magType?: string | null;
     net?: string;
     sources?: string;
+    /** True when GOSSIP/INGV published magnitude as N/D */
+    magNd?: boolean;
     /** SES extension: which catalog family supplied the feature */
     sesSource?: SeismicProviderId | "ingv-family" | "usgs-family";
     sesNodeId?: FocusNodeId;
@@ -52,8 +60,27 @@ export type SesEqCollection = {
     title?: string;
     authority?: string;
     nodeId?: FocusNodeId;
+    magNullPolicy?: string;
+    magNullCount?: number;
+    magFiniteCount?: number;
+    requireMag?: boolean;
   };
 };
+
+/** Finite hypocentre required for densify; mag may be null. */
+export function isSesPublishableEvent(e: QuakeEvent): boolean {
+  return (
+    Number.isFinite(e.latitude) &&
+    Number.isFinite(e.longitude) &&
+    Number.isFinite(e.depthKm) &&
+    Number.isFinite(e.time) &&
+    Boolean(e.id)
+  );
+}
+
+export function hasFiniteMag(e: QuakeEvent): boolean {
+  return e.magnitude != null && Number.isFinite(e.magnitude);
+}
 
 export function toSesEqFeature(
   e: QuakeEvent,
@@ -72,25 +99,28 @@ export function toSesEqFeature(
         ? "INGV-OV"
         : "INGV";
   const place = e.place || "";
-  const title =
-    e.magnitude != null
-      ? `M ${e.magnitude.toFixed(1)} - ${place}`
-      : place || e.id;
+  const magNd = !hasFiniteMag(e);
+  // Never invent 0 for N/D — explicit null + M— title for hub rendering
+  const mag = magNd ? null : e.magnitude;
+  const title = magNd
+    ? `M— - ${place || e.id}`
+    : `M ${e.magnitude!.toFixed(1)} - ${place}`;
   return {
     type: "Feature",
     id: e.id,
     properties: {
-      mag: e.magnitude,
+      mag,
       place: place || null,
       time: e.time,
       updated: e.time,
       title,
       type: e.eventType || "earthquake",
       status: "reviewed",
-      magType: e.magType,
+      magType: magNd ? e.magType || "N/D" : e.magType,
       net,
       sources,
       detail: place || undefined,
+      magNd,
       sesSource: e.provider,
       sesNodeId: nodeId,
     },
@@ -101,20 +131,39 @@ export function toSesEqFeature(
   };
 }
 
+export type SesCollectionOpts = {
+  /** Drop events without finite magnitude (stats-safe subset). */
+  requireMag?: boolean;
+};
+
 export function toSesEqCollection(
   events: QuakeEvent[],
   nodeId: FocusNodeId,
+  opts: SesCollectionOpts = {},
 ): SesEqCollection {
   const policy = getAuthority(nodeId);
+  const publishable = events.filter(isSesPublishableEvent);
+  const selected = opts.requireMag
+    ? publishable.filter(hasFiniteMag)
+    : publishable;
+  const magNullCount = publishable.filter((e) => !hasFiniteMag(e)).length;
+  const magFiniteCount = publishable.length - magNullCount;
+
   return {
     type: "FeatureCollection",
-    features: events.map((e) => toSesEqFeature(e, nodeId)),
+    features: selected.map((e) => toSesEqFeature(e, nodeId)),
     metadata: {
       generated: Date.now(),
-      count: events.length,
+      count: selected.length,
       title: `SES focus node · ${policy.label}`,
       authority: policy.authority,
       nodeId,
+      magNullPolicy: opts.requireMag
+        ? "omit-unmaged"
+        : "keep-null-never-zero",
+      magNullCount: opts.requireMag ? 0 : magNullCount,
+      magFiniteCount,
+      requireMag: Boolean(opts.requireMag),
     },
   };
 }
@@ -141,7 +190,9 @@ export function mergeSesWithAuthorityNode(opts: {
     return true;
   });
 
-  const local = opts.nodeEvents.map((e) => toSesEqFeature(e, opts.nodeId));
+  const local = opts.nodeEvents
+    .filter(isSesPublishableEvent)
+    .map((e) => toSesEqFeature(e, opts.nodeId));
   const byId = new Map<string, SesEqFeature>();
   for (const f of outside) byId.set(String(f.id), f);
   for (const f of local) byId.set(String(f.id), f);
@@ -149,6 +200,8 @@ export function mergeSesWithAuthorityNode(opts: {
   const features = [...byId.values()].sort(
     (a, b) => (b.properties.time ?? 0) - (a.properties.time ?? 0),
   );
+
+  const magNullCount = features.filter((f) => f.properties.mag == null).length;
 
   return {
     type: "FeatureCollection",
@@ -159,6 +212,9 @@ export function mergeSesWithAuthorityNode(opts: {
       title: `SES merged · ${policy.sesDragonId} authority=${policy.authority}`,
       authority: policy.authority,
       nodeId: opts.nodeId,
+      magNullPolicy: "keep-null-never-zero",
+      magNullCount,
+      magFiniteCount: features.length - magNullCount,
     },
   };
 }

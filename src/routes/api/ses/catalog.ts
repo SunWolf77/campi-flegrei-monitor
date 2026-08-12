@@ -27,6 +27,12 @@ function mapWindow(raw: string): WindowKey {
   return "7d";
 }
 
+function truthy(raw: string | null): boolean {
+  if (!raw) return false;
+  const v = raw.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 export const Route = createFileRoute("/api/ses/catalog")({
   server: {
     handlers: {
@@ -39,6 +45,7 @@ export const Route = createFileRoute("/api/ses/catalog")({
           "";
         const windowParam = url.searchParams.get("window") ?? "7d";
         const windowKey = mapWindow(windowParam);
+        const requireMag = truthy(url.searchParams.get("requireMag"));
         const nodeId: FocusNodeId =
           focusNodeFromSesParam(nodeParam) ?? "campi-flegrei";
 
@@ -49,17 +56,19 @@ export const Route = createFileRoute("/api/ses/catalog")({
             maxDepthKm:
               nodeId === "campi-flegrei" || nodeId === "vesuvius" ? 8 : undefined,
           });
-          const collection = toSesEqCollection(catalog.events ?? [], nodeId);
+          const collection = toSesEqCollection(catalog.events ?? [], nodeId, {
+            requireMag,
+          });
           const degraded = Boolean(catalog.degraded);
-          const etag = `"${nodeId}-${windowKey}-${catalog.fetchedAt}-${catalog.count}"`;
+          const featureCount = collection.features.length;
+          const etag = `"${nodeId}-${windowKey}-${requireMag ? "rm" : "all"}-${catalog.fetchedAt}-${featureCount}"`;
 
-          // Soft-empty with last-good still returns features when degraded
           const body = {
             ...collection,
             metadata: {
               ...collection.metadata,
               generated: Date.now(),
-              count: catalog.count,
+              count: featureCount,
               title: `SES focus feed · ${sesDragonId(nodeId)}`,
               authority: catalog.authority,
               nodeId,
@@ -71,11 +80,14 @@ export const Route = createFileRoute("/api/ses/catalog")({
               degraded,
               error: catalog.error,
               note:
-                nodeId === "campi-flegrei"
-                  ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read."
+                (nodeId === "campi-flegrei"
+                  ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read. "
                   : nodeId === "vesuvius"
-                    ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read."
-                    : "USGS authority for Tonga–Kermadec.",
+                    ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read. "
+                    : "USGS authority for Tonga–Kermadec. ") +
+                (requireMag
+                  ? "requireMag=1: unmaged (N/D) events omitted."
+                  : "mag may be null (GOSSIP N/D) — never treat as 0; show M—; min-mag filters skip null."),
             },
           };
 
@@ -103,6 +115,7 @@ export const Route = createFileRoute("/api/ses/catalog")({
                 error: err instanceof Error ? err.message : "SES catalog failed",
                 nodeId,
                 board: "campi-flegrei-monitor",
+                magNullPolicy: "keep-null-never-zero",
               },
             },
             {

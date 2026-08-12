@@ -183,7 +183,11 @@ function sesCatalogPlugin(): Plugin {
             toSesEqCollection: (
               events: unknown[],
               nodeId: string,
-            ) => Record<string, unknown>;
+              opts?: { requireMag?: boolean },
+            ) => {
+              features: unknown[];
+              metadata?: Record<string, unknown>;
+            };
           };
           const handoff = (await server.ssrLoadModule(
             "/src/lib/seismic/ses-handoff.ts",
@@ -197,8 +201,14 @@ function sesCatalogPlugin(): Plugin {
               return raw;
             return "7d";
           };
+          const truthy = (raw: string | null): boolean => {
+            if (!raw) return false;
+            const v = raw.trim().toLowerCase();
+            return v === "1" || v === "true" || v === "yes";
+          };
           const nodeParam = u.searchParams.get("node") || u.searchParams.get("sesNode");
           const windowKey = mapWindow(u.searchParams.get("window") || "7d");
+          const requireMag = truthy(u.searchParams.get("requireMag"));
           const nodeId =
             handoff.focusNodeFromSesParam(nodeParam) ?? "campi-flegrei";
           const catalog = await mod.loadCatalogPayload({
@@ -210,20 +220,25 @@ function sesCatalogPlugin(): Plugin {
           const collection = bridge.toSesEqCollection(
             catalog.events as never[],
             nodeId,
+            { requireMag },
           );
           const degraded = Boolean(catalog.degraded);
+          const featureCount = collection.features.length;
           const note =
-            nodeId === "campi-flegrei"
-              ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read."
+            (nodeId === "campi-flegrei"
+              ? "INGV-OV authority — replace USGS inside CF bbox; never dual-read. "
               : nodeId === "vesuvius"
-                ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read."
-                : "USGS authority for Tonga–Kermadec.";
+                ? "INGV-OV GOSSIP vesuvio authority — exclusive INGV-family; never dual-read. "
+                : "USGS authority for Tonga–Kermadec. ") +
+            (requireMag
+              ? "requireMag=1: unmaged (N/D) events omitted."
+              : "mag may be null (GOSSIP N/D) — never treat as 0; show M—; min-mag filters skip null.");
           const body = JSON.stringify({
             ...collection,
             metadata: {
               ...(collection.metadata as object),
               generated: Date.now(),
-              count: catalog.count,
+              count: featureCount,
               title: `SES focus feed · ${handoff.sesDragonId(nodeId)}`,
               authority: catalog.authority,
               nodeId,
@@ -248,7 +263,7 @@ function sesCatalogPlugin(): Plugin {
           res.setHeader("x-catalog-degraded", degraded ? "1" : "0");
           res.setHeader(
             "etag",
-            `"${nodeId}-${windowKey}-${catalog.fetchedAt ?? 0}-${catalog.count}"`,
+            `"${nodeId}-${windowKey}-${requireMag ? "rm" : "all"}-${catalog.fetchedAt ?? 0}-${featureCount}"`,
           );
           res.setHeader(
             "access-control-expose-headers",

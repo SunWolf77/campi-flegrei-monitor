@@ -25,6 +25,8 @@ type Props = {
   onSelect?: (id: string) => void;
 };
 
+const SHALLOW_KM = 3;
+
 function CrossSection({
   events,
   axis,
@@ -44,7 +46,12 @@ function CrossSection({
         id: e.id,
         x: axis === "lon" ? e.longitude : e.latitude,
         depth: e.depthKm,
-        mag: magValue(e.magnitude),
+        // plot size: N/D uses small fixed size, never pretend M0 energy
+        mag: e.magnitude != null && Number.isFinite(e.magnitude) ? e.magnitude : 0.4,
+        magLabel:
+          e.magnitude != null && Number.isFinite(e.magnitude)
+            ? e.magnitude
+            : null,
         time: e.time,
         place: e.place,
       })),
@@ -54,15 +61,21 @@ function CrossSection({
   const maxDepth = useMemo(() => {
     if (events.length === 0) return Math.max(node.depthRangeKm.deep, 5);
     const d = Math.max(...events.map((e) => e.depthKm), 1);
-    // Headroom so markers are not clipped; keep CF views tight
     return Math.max(Math.ceil(d * 1.35 * 2) / 2, 3);
   }, [events, node.depthRangeKm.deep]);
 
   const xLabel = axis === "lon" ? "Longitude (E)" : "Latitude (N)";
+  // Prefer tight mapView for CF caldera depth story when available
   const domain =
     axis === "lon"
-      ? [node.bbox.minLon, node.bbox.maxLon]
-      : [node.bbox.minLat, node.bbox.maxLat];
+      ? [
+          node.mapView?.minLon ?? node.bbox.minLon,
+          node.mapView?.maxLon ?? node.bbox.maxLon,
+        ]
+      : [
+          node.mapView?.minLat ?? node.bbox.minLat,
+          node.mapView?.maxLat ?? node.bbox.maxLat,
+        ];
 
   return (
     <div className="h-56 w-full">
@@ -105,12 +118,20 @@ function CrossSection({
             cursor={{ strokeDasharray: "3 3" }}
             content={({ payload }) => {
               const p = payload?.[0]?.payload as
-                | { mag: number; depth: number; time: number; place: string; x: number }
+                | {
+                    magLabel: number | null;
+                    depth: number;
+                    time: number;
+                    place: string;
+                    x: number;
+                  }
                 | undefined;
               if (!p) return null;
               return (
                 <div className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs shadow-md">
-                  <div className="font-mono font-semibold">M{formatMag(p.mag)}</div>
+                  <div className="font-mono font-semibold">
+                    {p.magLabel == null ? "M—" : `M${formatMag(p.magLabel)}`}
+                  </div>
                   <div className="text-muted-foreground">
                     {p.depth.toFixed(1)} km ·{" "}
                     {axis === "lon" ? `${p.x.toFixed(3)} E` : `${p.x.toFixed(3)} N`}
@@ -130,7 +151,7 @@ function CrossSection({
             {data.map((d) => (
               <Cell
                 key={d.id}
-                fill={magColor(d.mag)}
+                fill={magColor(d.magLabel)}
                 fillOpacity={selectedId && selectedId !== d.id ? 0.35 : 0.85}
                 stroke={selectedId === d.id ? "var(--color-fg)" : "transparent"}
                 strokeWidth={selectedId === d.id ? 1.5 : 0}
@@ -143,52 +164,188 @@ function CrossSection({
   );
 }
 
+function MagColorLegend() {
+  const stops = [1, 2, 3, 4, 5];
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+      <span>Mag</span>
+      {stops.map((m) => (
+        <span key={m} className="inline-flex items-center gap-1">
+          <span
+            className="size-2 rounded-full"
+            style={{ background: magColor(m) }}
+          />
+          M{m}
+        </span>
+      ))}
+      <span className="inline-flex items-center gap-1">
+        <span
+          className="size-2 rounded-full"
+          style={{ background: magColor(null) }}
+        />
+        N/D
+      </span>
+    </div>
+  );
+}
+
+function DepthKpis({ events }: { events: QuakeEvent[] }) {
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const h24 = now - 24 * 3_600_000;
+    const priorStart = h24 - 24 * 3_600_000;
+    const depths = events.map((e) => e.depthKm).filter(Number.isFinite);
+    const sorted = [...depths].sort((a, b) => a - b);
+    const median =
+      sorted.length === 0
+        ? null
+        : sorted.length % 2
+          ? sorted[(sorted.length - 1) / 2]!
+          : (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2;
+    const max = sorted.length ? sorted[sorted.length - 1]! : null;
+    const shallow = depths.filter((d) => d < SHALLOW_KM).length;
+    const shallowFrac = depths.length ? shallow / depths.length : 0;
+    const last24 = events.filter((e) => e.time >= h24);
+    const prior24 = events.filter((e) => e.time >= priorStart && e.time < h24);
+    const mags = events
+      .map((e) => e.magnitude)
+      .filter((m): m is number => m != null && Number.isFinite(m));
+    const maxMag = mags.length ? Math.max(...mags) : null;
+    const magNd = events.length - mags.length;
+    return {
+      n: events.length,
+      median,
+      max,
+      shallowFrac,
+      last24: last24.length,
+      prior24: prior24.length,
+      maxMag,
+      magNd,
+    };
+  }, [events]);
+
+  const delta = stats.last24 - stats.prior24;
+  const deltaLabel =
+    stats.prior24 === 0 && stats.last24 === 0
+      ? "—"
+      : `${delta >= 0 ? "+" : ""}${delta} vs prior 24h`;
+
+  return (
+    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
+      <Kpi label="Events" value={String(stats.n)} />
+      <Kpi
+        label="Median Z"
+        value={stats.median != null ? `${stats.median.toFixed(1)} km` : "—"}
+      />
+      <Kpi
+        label="Max Z"
+        value={stats.max != null ? `${stats.max.toFixed(1)} km` : "—"}
+      />
+      <Kpi
+        label={`Shallow <${SHALLOW_KM} km`}
+        value={`${(stats.shallowFrac * 100).toFixed(0)}%`}
+        sub={`${Math.round(stats.shallowFrac * stats.n)} events`}
+      />
+      <Kpi
+        label="24h vs prior"
+        value={`${stats.last24} / ${stats.prior24}`}
+        sub={deltaLabel}
+      />
+      <Kpi
+        label="Largest M"
+        value={stats.maxMag != null ? `M${stats.maxMag.toFixed(1)}` : "—"}
+        sub={stats.magNd ? `${stats.magNd}× N/D` : "all finite"}
+      />
+    </div>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-card px-2 py-1.5">
+      <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className="font-mono text-sm font-semibold tabular-nums">{value}</div>
+      {sub && (
+        <div className="truncate text-[10px] text-muted-foreground">{sub}</div>
+      )}
+    </div>
+  );
+}
+
 export function DepthProfile({ events, node, selectedId, onSelect }: Props) {
   const hist = useMemo(() => depthHistogram(events, 0.5), [events]);
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid gap-3">
       <Card>
-        <CardHeader>
-          <CardTitle>Depth cross-section — longitude</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle>Depth analytics</CardTitle>
           <CardDescription>
-            Hypocenters projected E–W. Depth positive down; marker size scales with magnitude.
+            Why this board exists: caldera-scale depth story. Shallow = depth under{" "}
+            {SHALLOW_KM} km. 24h compare is descriptive only — not an anomaly score.
+            N/D magnitudes stay N/D (never treated as M0).
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CrossSection
-            events={events}
-            axis="lon"
-            node={node}
-            selectedId={selectedId}
-            onSelect={onSelect}
-          />
+          <DepthKpis events={events} />
         </CardContent>
       </Card>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Depth cross-section — longitude</CardTitle>
+            <CardDescription>
+              Hypocenters projected E–W. Depth positive down; marker size scales with
+              magnitude (N/D = small).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CrossSection
+              events={events}
+              axis="lon"
+              node={node}
+              selectedId={selectedId}
+              onSelect={onSelect}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Depth cross-section — latitude</CardTitle>
+            <CardDescription>
+              Hypocenters projected N–S. CF unrest is typically very shallow (under 4 km).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CrossSection
+              events={events}
+              axis="lat"
+              node={node}
+              selectedId={selectedId}
+              onSelect={onSelect}
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Depth cross-section — latitude</CardTitle>
-          <CardDescription>
-            Hypocenters projected N–S. Shallow CF events typically under 4 km.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CrossSection
-            events={events}
-            axis="lat"
-            node={node}
-            selectedId={selectedId}
-            onSelect={onSelect}
-          />
-        </CardContent>
-      </Card>
-
-      <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Depth distribution</CardTitle>
           <CardDescription>
-            Event count by depth bin (0.5 km). Bar colour = mean magnitude in that bin.
+            Event count by depth bin (0.5 km). Bar colour = mean finite magnitude in
+            that bin.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -227,8 +384,8 @@ export function DepthProfile({ events, node, selectedId, onSelect }: Props) {
                   }}
                 />
                 <Bar dataKey="count" radius={[3, 3, 0, 0]}>
-                  {hist.map((b) => (
-                    <Cell key={b.label} fill={magColor(b.meanMag || 1)} fillOpacity={0.85} />
+                  {hist.map((bin, i) => (
+                    <Cell key={i} fill={magColor(bin.meanMag)} />
                   ))}
                 </Bar>
               </BarChart>
@@ -236,39 +393,6 @@ export function DepthProfile({ events, node, selectedId, onSelect }: Props) {
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-/** Matches magColor() thresholds — cool micro → warm critical. */
-const MAG_LEGEND: { label: string; mag: number }[] = [
-  { label: "<1.5", mag: 1.0 },
-  { label: "1.5+", mag: 1.5 },
-  { label: "2.5+", mag: 2.5 },
-  { label: "3.5+", mag: 3.5 },
-  { label: "4.5+", mag: 4.5 },
-];
-
-function MagColorLegend() {
-  return (
-    <div
-      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground"
-      aria-label="Mean magnitude colour scale"
-    >
-      <span className="shrink-0 font-medium text-foreground/80">Mean M</span>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {MAG_LEGEND.map((s) => (
-          <span key={s.label} className="inline-flex items-center gap-1">
-            <span
-              className="inline-block size-2.5 shrink-0 rounded-sm ring-1 ring-border/60"
-              style={{ background: magColor(s.mag) }}
-              aria-hidden
-            />
-            <span className="font-mono">{s.label}</span>
-          </span>
-        ))}
-      </div>
-      <span className="text-[9px] opacity-70">cool → warm</span>
     </div>
   );
 }
